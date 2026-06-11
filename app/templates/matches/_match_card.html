@@ -1,0 +1,168 @@
+{# Expects: match, prediction (or None), pool_id, pool, now_timestamp, match_deadlines #}
+{% set deadline_ts = match_deadlines[match.id] %}
+{% set kickoff_ts = deadline_ts + 600 %}
+{% set is_past = now_timestamp > deadline_ts %}
+{% set can_predict = ((not is_past) or match.allow_retroactive) and not match.is_finished %}
+{% set share_prefix = '⚽ *Bolão ' ~ pool.name ~ '*\n' ~ match.stage ~ '\nMeu palpite: ' ~ match.home_team ~ ' ' %}
+{% set share_suffix = ' ' ~ match.away_team %}
+
+<div class="bg-white rounded-2xl shadow-card hover:shadow-lift transition-shadow duration-200 overflow-hidden flex flex-col"
+     x-data="{ deadline: {{ deadline_ts }}, now: Math.floor(Date.now()/1000) }"
+     x-init="setInterval(() => now = Math.floor(Date.now()/1000), 1000)">
+
+  <!-- Header strip -->
+  <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
+    <span class="text-[11px] font-bold uppercase tracking-wider text-pitch-700">{{ match.stage }}</span>
+    <div class="flex items-center gap-1.5">
+      {% if match.allow_retroactive and not match.is_finished %}
+      <span class="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Retroativo</span>
+      {% endif %}
+      {% if match.is_finished %}
+      <span class="text-[10px] font-bold uppercase bg-gray-800 text-white px-2 py-0.5 rounded-full">Encerrado</span>
+      {% elif is_past %}
+      <span class="text-[10px] font-bold uppercase bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Bloqueado</span>
+      {% else %}
+      <span class="text-[10px] font-bold uppercase bg-pitch-100 text-pitch-700 px-2 py-0.5 rounded-full">Aberto</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="p-4 flex-1 flex flex-col">
+    <!-- Teams + Score -->
+    <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mb-1">
+      <span class="text-sm font-bold text-right leading-snug">{{ match.home_team }}</span>
+      {% if match.is_finished %}
+      <span class="text-2xl font-black text-pitch-800 tabular-nums px-2">{{ match.home_score }}<span class="text-gray-300 mx-1">:</span>{{ match.away_score }}</span>
+      {% else %}
+      <span class="text-xs font-bold text-gray-300 px-2">VS</span>
+      {% endif %}
+      <span class="text-sm font-bold text-left leading-snug">{{ match.away_team }}</span>
+    </div>
+
+    <!-- Local kickoff time + countdown -->
+    <div class="text-center text-xs text-gray-400 mb-4">
+      <span x-text="new Date({{ kickoff_ts }} * 1000).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })"></span>
+      {% if not match.is_finished and not is_past %}
+      <template x-if="now < deadline">
+        <div class="mt-1 inline-flex items-center gap-1 text-pitch-600 font-semibold tabular-nums">
+          ⏱ <span x-text="(() => { let s=deadline-now; if(s<0) return ''; let d=Math.floor(s/86400); let h=Math.floor((s%86400)/3600); let m=Math.floor((s%3600)/60); let sec=s%60; return (d>0? d+'d ':'') + (h>0? h+'h ':'') + m+'m ' + sec+'s'; })()"></span>
+          <span class="text-gray-400 font-normal">para palpitar</span>
+        </div>
+      </template>
+      {% endif %}
+    </div>
+
+    <div class="mt-auto">
+      <!-- Prediction form -->
+      {% if can_predict %}
+      <form method="POST" action="/predictions"
+            x-data="{ loading: false }"
+            @submit.prevent="
+              loading = true;
+              fetch('/predictions', { method: 'POST', body: new FormData($el), headers: {'Accept': 'application/json'} })
+                .then(async r => {
+                  const d = await r.json();
+                  window.dispatchEvent(new CustomEvent('toast', { detail: { message: r.ok ? d.message : (d.detail || 'Erro ao salvar.'), ok: r.ok } }));
+                })
+                .catch(() => window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Falha de conexão.', ok: false } })))
+                .finally(() => loading = false)
+            ">
+        <input type="hidden" name="pool_id" value="{{ pool_id }}">
+        <input type="hidden" name="match_id" value="{{ match.id }}">
+        <div class="flex items-center justify-center gap-2">
+          <input type="number" name="predicted_home" min="0" max="20" required
+                 value="{{ prediction.predicted_home if prediction is not none else '' }}"
+                 class="w-16 text-center text-lg font-black border-2 border-gray-200 rounded-xl py-2 focus:ring-2 focus:ring-pitch-500 focus:border-pitch-500 outline-none transition"
+                 placeholder="–">
+          <span class="text-gray-300 font-black text-lg">×</span>
+          <input type="number" name="predicted_away" min="0" max="20" required
+                 value="{{ prediction.predicted_away if prediction is not none else '' }}"
+                 class="w-16 text-center text-lg font-black border-2 border-gray-200 rounded-xl py-2 focus:ring-2 focus:ring-pitch-500 focus:border-pitch-500 outline-none transition"
+                 placeholder="–">
+          <button type="submit" :disabled="loading"
+                  class="bg-pitch-700 hover:bg-pitch-800 active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition disabled:opacity-50 ml-1">
+            <span x-show="!loading">Salvar</span>
+            <span x-show="loading" x-cloak>···</span>
+          </button>
+        </div>
+
+        <!-- WhatsApp share (reads current inputs) -->
+        <div class="flex items-center justify-center gap-2 mt-2.5"
+             x-data='{ p: {{ share_prefix | tojson }}, s: {{ share_suffix | tojson }} }'>
+          <button type="button"
+                  @click="const f = $el.closest('form'); const t = p + (f.predicted_home.value || '?') + ' × ' + (f.predicted_away.value || '?') + s; window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank')"
+                  class="text-[11px] font-bold text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+            📤 WhatsApp
+          </button>
+          <button type="button"
+                  @click="const f = $el.closest('form'); const t = p + (f.predicted_home.value || '?') + ' × ' + (f.predicted_away.value || '?') + s; navigator.clipboard.writeText(t); window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Palpite copiado!' } }))"
+                  class="text-[11px] font-bold text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+            📋 Copiar
+          </button>
+        </div>
+      </form>
+
+      <!-- Locked: prediction saved -->
+      {% elif prediction and not match.is_finished %}
+      {% set saved_text = share_prefix ~ prediction.predicted_home ~ ' × ' ~ prediction.predicted_away ~ share_suffix %}
+      <div class="flex items-center justify-center gap-2 bg-gray-50 rounded-xl py-2.5">
+        <span class="text-xs text-gray-400">🔒 Seu palpite:</span>
+        <span class="font-black text-gray-700 tabular-nums">{{ prediction.predicted_home }} × {{ prediction.predicted_away }}</span>
+      </div>
+      <div class="flex items-center justify-center gap-2 mt-2.5"
+           x-data='{ t: {{ saved_text | tojson }} }'>
+        <button type="button"
+                @click="window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank')"
+                class="text-[11px] font-bold text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition">
+          📤 WhatsApp
+        </button>
+        <button type="button"
+                @click="navigator.clipboard.writeText(t); window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Palpite copiado!' } }))"
+                class="text-[11px] font-bold text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition">
+          📋 Copiar
+        </button>
+      </div>
+
+      <!-- Locked: no prediction -->
+      {% elif not prediction and not match.is_finished %}
+      <div class="text-center text-sm text-gray-300 font-medium bg-gray-50 rounded-xl py-2.5">— sem palpite —</div>
+      {% endif %}
+
+      <!-- Finished: show prediction + points -->
+      {% if match.is_finished %}
+        {% if prediction %}
+        {% set result_text = share_prefix ~ prediction.predicted_home ~ ' × ' ~ prediction.predicted_away ~ share_suffix ~ '\nResultado: ' ~ match.home_score ~ ' × ' ~ match.away_score ~ (' — fiz +' ~ prediction.points_awarded ~ ' pts! 🎉' if prediction.points_awarded is not none else '') %}
+        <div class="flex items-center justify-center gap-3 bg-gray-50 rounded-xl py-2.5">
+          <span class="text-xs text-gray-500">Palpite: <strong class="tabular-nums">{{ prediction.predicted_home }} × {{ prediction.predicted_away }}</strong></span>
+          {% if prediction.points_awarded is not none %}
+          <span class="text-xs font-black px-2.5 py-1 rounded-full
+            {% if prediction.points_awarded == 10 %}bg-pitch-700 text-white
+            {% elif prediction.points_awarded == 7 %}bg-pitch-500 text-white
+            {% elif prediction.points_awarded == 5 %}bg-gold-400 text-pitch-900
+            {% elif prediction.points_awarded == 3 %}bg-amber-200 text-amber-800
+            {% elif prediction.points_awarded == 1 %}bg-gray-200 text-gray-600
+            {% else %}bg-gray-100 text-gray-400{% endif %}">
+            +{{ prediction.points_awarded }} pts
+          </span>
+          {% endif %}
+        </div>
+        <div class="flex items-center justify-center gap-2 mt-2.5"
+             x-data='{ t: {{ result_text | tojson }} }'>
+          <button type="button"
+                  @click="window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank')"
+                  class="text-[11px] font-bold text-green-600 hover:text-green-700 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-lg transition">
+            📤 WhatsApp
+          </button>
+          <button type="button"
+                  @click="navigator.clipboard.writeText(t); window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Resultado copiado!' } }))"
+                  class="text-[11px] font-bold text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 px-3 py-1.5 rounded-lg transition">
+            📋 Copiar
+          </button>
+        </div>
+        {% else %}
+        <div class="text-center text-sm text-gray-300 font-medium bg-gray-50 rounded-xl py-2.5">— sem palpite —</div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>

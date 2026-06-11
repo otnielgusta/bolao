@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Criar Bolão — Bolão Copa 2026{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto mt-6">
+  <a href="/pools" class="inline-flex items-center gap-1 text-sm font-semibold text-gray-400 hover:text-pitch-700 transition mb-4">← Voltar</a>
+
+  <div class="bg-white rounded-2xl shadow-lift p-8">
+    <div class="text-center mb-6">
+      <div class="text-4xl mb-2">🏟️</div>
+      <h1 class="text-2xl font-extrabold tracking-tight text-pitch-950">Criar Bolão</h1>
+      <p class="text-sm text-gray-500 mt-1">Você será o administrador e poderá convidar participantes</p>
+    </div>
+
+    <form method="POST" action="/pools/create" class="space-y-5">
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Nome do Bolão</label>
+        <input type="text" name="name" required maxlength="200" placeholder="Ex.: Bolão da Firma 2026"
+               class="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-pitch-500 focus:border-pitch-500 focus:bg-white outline-none transition">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Descrição <span class="normal-case font-normal text-gray-400">(opcional)</span></label>
+        <textarea name="description" maxlength="500" rows="3" placeholder="Regras extras, premiação, etc."
+                  class="w-full border border-gray-200 bg-gray-50 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-pitch-500 focus:border-pitch-500 focus:bg-white outline-none transition resize-none"></textarea>
+      </div>
+      <button type="submit"
+              class="w-full bg-pitch-700 hover:bg-pitch-800 active:scale-[0.99] text-white font-bold py-3 rounded-xl transition shadow-card">
+        Criar Bolão
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Jogos — Bolão Copa 2026{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-extrabold tracking-tight text-pitch-950 mb-6">Todos os Jogos</h1>
+
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  {% for match in matches %}
+  <div class="bg-white rounded-2xl shadow-card p-5">
+    <span class="text-[10px] font-bold uppercase tracking-wider text-pitch-600">{{ match.stage }}</span>
+    <div class="font-extrabold text-gray-900 mt-1">
+      {{ match.home_team }} <span class="text-gray-300 font-normal">vs</span> {{ match.away_team }}
+    </div>
+    <div class="text-xs text-gray-400 mt-1">{{ match.match_datetime.strftime('%d/%m/%Y %H:%M') }} UTC</div>
+    {% if match.is_finished %}
+    <div class="mt-2 font-black text-pitch-700 tabular-nums">{{ match.home_score }} × {{ match.away_score }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

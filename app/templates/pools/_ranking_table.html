@@ -1,0 +1,37 @@
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-gray-50 text-left text-[11px] uppercase tracking-wider text-gray-500">
+        <th class="px-4 py-3 font-bold">#</th>
+        <th class="px-4 py-3 font-bold">Participante</th>
+        <th class="px-4 py-3 font-bold text-center">Pontos</th>
+        <th class="px-3 py-3 font-bold text-center" title="Placar exato">💎 10</th>
+        <th class="px-3 py-3 font-bold text-center" title="Vencedor + saldo">🎯 7</th>
+        <th class="px-3 py-3 font-bold text-center" title="Vencedor + gols de um time">✅ 5</th>
+        <th class="px-3 py-3 font-bold text-center" title="Apenas vencedor">👍 3</th>
+        <th class="px-3 py-3 font-bold text-center" title="Gols de um time">🤏 1</th>
+        <th class="px-3 py-3 font-bold text-center" title="Errou tudo">❌ 0</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for r in ranking %}
+      <tr class="{% if r.position == 1 %}bg-gold-300/20{% elif r.position <= 3 %}bg-gold-300/10{% endif %} hover:bg-pitch-50/50 transition">
+        <td class="px-4 py-3 font-black text-gray-400 tabular-nums">
+          {% if r.position == 1 %}🥇{% elif r.position == 2 %}🥈{% elif r.position == 3 %}🥉{% else %}{{ r.position }}º{% endif %}
+        </td>
+        <td class="px-4 py-3 font-bold text-gray-900">{{ r.display_name }}</td>
+        <td class="px-4 py-3 text-center"><span class="font-black text-pitch-700 text-base tabular-nums">{{ r.total }}</span></td>
+        <td class="px-3 py-3 text-center tabular-nums {% if r.counts[10] %}font-bold text-pitch-700{% else %}text-gray-300{% endif %}">{{ r.counts[10] }}</td>
+        <td class="px-3 py-3 text-center tabular-nums {% if r.counts[7] %}font-bold text-pitch-600{% else %}text-gray-300{% endif %}">{{ r.counts[7] }}</td>
+        <td class="px-3 py-3 text-center tabular-nums {% if r.counts[5] %}font-semibold text-gray-700{% else %}text-gray-300{% endif %}">{{ r.counts[5] }}</td>
+        <td class="px-3 py-3 text-center tabular-nums {% if r.counts[3] %}font-semibold text-gray-600{% else %}text-gray-300{% endif %}">{{ r.counts[3] }}</td>
+        <td class="px-3 py-3 text-center tabular-nums {% if r.counts[1] %}text-gray-500{% else %}text-gray-300{% endif %}">{{ r.counts[1] }}</td>
+        <td class="px-3 py-3 text-center tabular-nums text-gray-300">{{ r.counts[0] }}</td>
+      </tr>
+      {% endfor %}
+      {% if not ranking %}
+      <tr><td colspan="9" class="text-center py-10 text-gray-400">Nenhum palpite pontuado ainda. A classificação aparece após o primeiro resultado.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>

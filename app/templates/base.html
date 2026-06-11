@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Bolão Copa 2026{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            pitch: {
+              50: '#f3faf5', 100: '#e3f5e9', 200: '#c8ead4', 300: '#9dd8b2',
+              400: '#6abe88', 500: '#45a266', 600: '#338551', 700: '#2b6a43',
+              800: '#265538', 900: '#20462f', 950: '#0e2719'
+            },
+            gold: { 300: '#fde68a', 400: '#fbbf24', 500: '#f59e0b' },
+          },
+          boxShadow: {
+            card: '0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)',
+            lift: '0 10px 25px -5px rgb(0 0 0 / 0.08), 0 4px 10px -6px rgb(0 0 0 / 0.05)',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .text-balance { text-wrap: balance; }
+    input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col font-sans text-gray-800 antialiased">
+
+  <!-- Toast -->
+  <div x-data="{ show: false, msg: '', ok: true }"
+       x-on:toast.window="msg = $event.detail.message; ok = $event.detail.ok !== false; show = true; setTimeout(() => show = false, 3500)"
+       x-show="show" x-cloak
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0 translate-y-2"
+       x-transition:enter-end="opacity-100 translate-y-0"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0"
+       class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl shadow-lift text-sm font-semibold text-white flex items-center gap-2"
+       :class="ok ? 'bg-pitch-700' : 'bg-red-600'">
+    <span x-show="ok">✓</span><span x-show="!ok">✕</span>
+    <span x-text="msg"></span>
+  </div>
+
+  <!-- Nav -->
+  <nav class="bg-gradient-to-r from-pitch-900 via-pitch-800 to-pitch-900 text-white shadow-md sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <a href="/pools" class="flex items-center gap-2.5 group">
+        <span class="text-2xl group-hover:rotate-12 transition-transform duration-300">⚽</span>
+        <div class="leading-tight">
+          <span class="block font-extrabold tracking-tight text-base">BOLÃO COPA 2026</span>
+          <span class="block text-[10px] uppercase tracking-[0.2em] text-pitch-300">Canadá · México · EUA</span>
+        </div>
+      </a>
+      {% if user %}
+      <div class="flex items-center gap-3">
+        <div class="hidden sm:flex items-center gap-2 bg-white/10 rounded-full pl-1 pr-3 py-1">
+          <span class="w-7 h-7 rounded-full bg-gold-400 text-pitch-900 font-bold text-xs flex items-center justify-center uppercase">
+            {{ user.display_name[:2] }}
+          </span>
+          <span class="text-sm font-medium text-pitch-100">{{ user.display_name }}</span>
+        </div>
+        <a href="/auth/logout"
+           class="text-xs font-semibold text-pitch-200 hover:text-white border border-pitch-600 hover:border-pitch-400 rounded-lg px-3 py-1.5 transition">
+          Sair
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </nav>
+
+  <!-- Content -->
+  <main class="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-200 bg-white">
+    <div class="max-w-6xl mx-auto px-4 py-5 flex items-center justify-between text-xs text-gray-400">
+      <span>⚽ Bolão Copa do Mundo 2026</span>
+      <span>Fase de grupos · 11 jun — Final · 19 jul</span>
+    </div>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

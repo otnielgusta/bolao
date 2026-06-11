@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Meus Bolões — Bolão Copa 2026{% endblock %}
+
+{% block content %}
+<div class="flex items-end justify-between mb-8 flex-wrap gap-4">
+  <div>
+    <h1 class="text-3xl font-extrabold tracking-tight text-pitch-950">Meus Bolões</h1>
+    <p class="text-sm text-gray-500 mt-1">Acompanhe suas competições da Copa 2026</p>
+  </div>
+  <a href="/pools/create"
+     class="bg-pitch-700 hover:bg-pitch-800 active:scale-[0.98] text-white px-5 py-2.5 rounded-xl text-sm font-bold transition shadow-card flex items-center gap-2">
+    <span class="text-lg leading-none">+</span> Novo Bolão
+  </a>
+</div>
+
+{% if memberships %}
+<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+  {% for m in memberships %}
+  <a href="/pools/{{ m.pool.id }}"
+     class="group bg-white rounded-2xl shadow-card hover:shadow-lift hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+    <div class="h-1.5 bg-gradient-to-r from-pitch-600 via-gold-400 to-pitch-600"></div>
+    <div class="p-5">
+      <div class="flex items-start justify-between gap-2 mb-1">
+        <h2 class="font-extrabold text-lg text-gray-900 group-hover:text-pitch-800 transition leading-tight">{{ m.pool.name }}</h2>
+        {% if m.pool.owner_id == user.id %}
+        <span class="shrink-0 text-[10px] font-bold uppercase tracking-wide bg-gold-400 text-pitch-950 px-2 py-1 rounded-full">👑 Dono</span>
+        {% endif %}
+      </div>
+      {% if m.pool.description %}
+      <p class="text-sm text-gray-500 mb-4 line-clamp-2">{{ m.pool.description }}</p>
+      {% else %}
+      <p class="text-sm text-gray-300 mb-4 italic">Sem descrição</p>
+      {% endif %}
+      <div class="flex items-baseline gap-1.5">
+        <span class="text-3xl font-black text-pitch-700 tabular-nums">{{ pool_scores.get(m.pool_id, 0) }}</span>
+        <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">pontos</span>
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-white rounded-2xl shadow-card p-12 text-center max-w-lg mx-auto">
+  <div class="text-6xl mb-4">🥅</div>
+  <h2 class="text-xl font-extrabold text-gray-900 mb-2">Nenhum bolão ainda</h2>
+  <p class="text-sm text-gray-500 mb-6">Crie seu primeiro bolão e convide os amigos, ou peça um link de convite para entrar em um existente.</p>
+  <a href="/pools/create"
+     class="inline-block bg-pitch-700 hover:bg-pitch-800 text-white px-6 py-3 rounded-xl text-sm font-bold transition">
+    Criar meu primeiro bolão
+  </a>
+</div>
+{% endif %}
+{% endblock %}

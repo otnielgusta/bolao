@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Admin — {{ pool.name }}{% endblock %}
+
+{% block content %}
+<a href="/pools/{{ pool.id }}" class="inline-flex items-center gap-1 text-sm font-semibold text-gray-400 hover:text-pitch-700 transition mb-4">← Voltar ao bolão</a>
+
+<div class="flex items-center gap-3 mb-6">
+  <h1 class="text-2xl font-extrabold tracking-tight text-pitch-950">⚙️ Painel de Administração</h1>
+  <span class="text-xs font-bold bg-pitch-100 text-pitch-700 px-3 py-1 rounded-full">{{ pool.name }}</span>
+  <span class="text-[10px] font-semibold uppercase tracking-wide text-pitch-600 bg-pitch-50 border border-pitch-100 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+    <span class="w-1.5 h-1.5 rounded-full bg-pitch-500 animate-pulse"></span> Resultados sincronizam automaticamente
+  </span>
+</div>
+
+<div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6 text-xs text-amber-800 flex items-start gap-2">
+  <span class="text-base leading-none">💡</span>
+  <div>
+    <strong>Retroativo:</strong> permite que membros palpitem após o início do jogo (até ele encerrar).
+    <strong>Palpite de membro:</strong> registre palpites em nome de qualquer membro — funciona mesmo em jogos já encerrados, com pontos calculados na hora.
+    Resultados e times do mata-mata sincronizam sozinhos com a API.
+  </div>
+</div>
+
+<div class="space-y-3" x-data="{ editing: null, predicting: null }">
+  {% for match in matches %}
+  <div class="bg-white rounded-2xl shadow-card p-5">
+    <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 mb-0.5">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-pitch-600">{{ match.stage }}</span>
+          <span class="text-[10px] text-gray-400">{{ match.match_datetime.strftime('%d/%m %H:%M') }} UTC</span>
+          {% if match.allow_retroactive and not match.is_finished %}
+          <span class="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Retroativo</span>
+          {% endif %}
+        </div>
+        <div class="font-extrabold text-gray-900">
+          {{ match.home_team }} <span class="text-gray-300 font-normal">vs</span> {{ match.away_team }}
+        </div>
+      </div>
+      {% if match.is_finished %}
+      <span class="text-sm font-black bg-gray-900 text-white px-4 py-1.5 rounded-full tabular-nums">
+        {{ match.home_score }} × {{ match.away_score }}
+      </span>
+      {% endif %}
+    </div>
+
+    {% if not match.is_finished %}
+    <div class="flex flex-wrap items-end gap-3 pt-3 border-t border-gray-50">
+      <!-- Toggle Retroactive -->
+      <form method="POST" action="/admin/match/{{ match.id }}/retroactive">
+        <input type="hidden" name="pool_id" value="{{ pool.id }}">
+        <button type="submit"
+                class="text-xs font-bold px-4 py-2.5 rounded-xl transition active:scale-95
+                       {% if match.allow_retroactive %}bg-amber-500 hover:bg-amber-600 text-white{% else %}bg-gray-100 hover:bg-gray-200 text-gray-600{% endif %}">
+          {% if match.allow_retroactive %}🔓 Desativar Retroativo{% else %}🔒 Ativar Retroativo{% endif %}
+        </button>
+      </form>
+
+      <!-- Edit teams toggle -->
+      <button @click="editing = editing === {{ match.id }} ? null : {{ match.id }}"
+              class="text-xs font-bold px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-600 transition active:scale-95">
+        ✏️ Editar Times
+      </button>
+
+      <!-- Member prediction toggle -->
+      <button @click="predicting = predicting === {{ match.id }} ? null : {{ match.id }}"
+              class="text-xs font-bold px-4 py-2.5 rounded-xl bg-pitch-50 hover:bg-pitch-100 text-pitch-700 transition active:scale-95">
+        👥 Palpite de Membro
+      </button>
+
+      <!-- Set Result -->
+      <form method="POST" action="/admin/match/{{ match.id }}/result" class="flex items-end gap-2 ml-auto"
+            onsubmit="return confirm('Registrar resultado e calcular pontos? Esta ação encerra o jogo.')">
+        <input type="hidden" name="pool_id" value="{{ pool.id }}">
+        <div>
+          <label class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 block mb-1">Casa</label>
+          <input type="number" name="home_score" min="0" max="30" required
+                 class="w-16 text-center font-black border-2 border-gray-200 rounded-xl py-2 text-sm focus:ring-2 focus:ring-pitch-500 focus:border-pitch-500 outline-none">
+        </div>
+        <span class="text-gray-300 font-black pb-2.5">×</span>
+        <div>
+          <label class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 block mb-1">Fora</label>
+          <input type="number" name="away_score" min="0" max="30" required
+                 class="w-16 text-center font-black border-2 border-gray-200 rounded-xl py-2 text-sm focus:ring-2 focus:ring-pitch-500 focus:border-pitch-500 outline-none">
+        </div>
+        <button type="submit"
+                class="bg-pitch-700 hover:bg-pitch-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition active:scale-95">
+          ✓ Finalizar
+        </button>
+      </form>
+    </div>
+
+    <!-- Edit teams form (collapsible) -->
+    <div x-show="editing === {{ match.id }}" x-cloak x-transition class="pt-3 mt-3 border-t border-gray-50">
+      <form method="POST" action="/admin/match/{{ match.id }}/teams" class="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="pool_id" value="{{ pool.id }}">
+        <div class="flex-1 min-w-[180px]">
+          <label class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 block mb-1">Time da casa</label>
+          <input type="text" name="home_team" value="{{ match.home_team }}" required maxlength="100"
+                 class="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-pitch-500 outline-none">
+        </div>
+        <div class="flex-1 min-w-[180px]">
+          <label class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 block mb-1">Time visitante</label>
+          <input type="text" name="away_team" value="{{ match.away_team }}" required maxlength="100"
+                 class="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-pitch-500 outline-none">
+        </div>
+        <button type="submit"
+                class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition">
+          Salvar Times
+        </button>
+      </form>
+    </div>
+    {% else %}
+    <!-- Finished match: member prediction still available -->
+    <div class="flex flex-wrap items-end gap-3 pt-3 border-t border-gray-50">
+      <button @click="predicting = predicting === {{ match.id }} ? null : {{ match.id }}"
+              class="text-xs font-bold px-4 py-2.5 rounded-xl bg-pitch-50 hover:bg-pitch-100 text-pitch-700 transition active:scale-95">
+        👥 Palpite Retroativo de Membro
+      </button>
+    </div>
+    {% endif %}
+
+    <!-- Member prediction form (collapsible, works for finished matches too) -->
+    <div x-show="predicting === {{ match.id }}" x-cloak x-transition class="pt-3 mt-3 border-t border-gray-50">
+      <form method="POST" action="/admin/pool/{{ pool.id }}/member-prediction" class="flex flex-wrap items-end gap-3">
+        <input type="hidden" name="match_id" value="{{ match.id }}">
+        <div class="flex-1 min-w-[200px]">
+          <label class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 block mb-1">Membro</label>
+          <select name="member_id" required
+                  class="w-full border border-gray-200 bg-gray-50 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-pitch-500 outline-none">
+            <option value="" disabled selected>Selecione o membro...</option>
+            {% for m in members %}
+            <option value="{{ m.user_id }}">{{ m.user.display_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 block mb-1">Casa</label>
+          <input type="number" name="predicted_home" min="0" max="20" required
+                 class="w-16 text-center font-black border-2 border-gray-200 rounded-xl py-2 text-sm focus:ring-2 focus:ring-pitch-500 outline-none">
+        </div>
+        <span class="text-gray-300 font-black pb-2.5">×</span>
+        <div>
+          <label class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 block mb-1">Fora</label>
+          <input type="number" name="predicted_away" min="0" max="20" required
+                 class="w-16 text-center font-black border-2 border-gray-200 rounded-xl py-2 text-sm focus:ring-2 focus:ring-pitch-500 outline-none">
+        </div>
+        <button type="submit"
+                class="bg-pitch-700 hover:bg-pitch-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition active:scale-95">
+          ✓ Registrar Palpite
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
