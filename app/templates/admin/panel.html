@@ -28,7 +28,7 @@
       <div class="min-w-0">
         <div class="flex items-center gap-2 mb-0.5">
           <span class="text-[10px] font-bold uppercase tracking-wider text-pitch-600">{{ match.stage }}</span>
-          <span class="text-[10px] text-gray-400">{{ match.match_datetime.strftime('%d/%m %H:%M') }} UTC</span>
+          <span class="text-[10px] text-gray-400">{{ match.match_datetime|local_strftime('%d/%m %H:%M') }} BRT</span>
           {% if match.allow_retroactive and not match.is_finished %}
           <span class="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Retroativo</span>
           {% endif %}

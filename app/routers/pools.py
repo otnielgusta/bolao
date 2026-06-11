@@ -2,7 +2,6 @@ import datetime
 
 from fastapi import APIRouter, Depends, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -10,9 +9,10 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import User, Pool, PoolMember, Prediction, Match
 from app.routers.auth import require_user
+from app.templating import create_templates
 
 router = APIRouter(prefix="/pools", tags=["pools"])
-templates = Jinja2Templates(directory="app/templates")
+templates = create_templates()
 
 
 @router.get("", response_class=HTMLResponse)

@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,9 +9,10 @@ from app.database import get_db
 from app.models import User, Pool, PoolMember, Match, Prediction
 from app.routers.auth import require_user
 from app.services.scoring import calculate_points
+from app.templating import create_templates
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-templates = Jinja2Templates(directory="app/templates")
+templates = create_templates()
 
 
 async def require_pool_owner(pool_id: int, user: User, db: AsyncSession) -> Pool:

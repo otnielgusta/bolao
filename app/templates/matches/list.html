@@ -11,7 +11,7 @@
     <div class="font-extrabold text-gray-900 mt-1">
       {{ match.home_team }} <span class="text-gray-300 font-normal">vs</span> {{ match.away_team }}
     </div>
-    <div class="text-xs text-gray-400 mt-1">{{ match.match_datetime.strftime('%d/%m/%Y %H:%M') }} UTC</div>
+    <div class="text-xs text-gray-400 mt-1">{{ match.match_datetime|local_strftime('%d/%m/%Y %H:%M') }} BRT</div>
     {% if match.is_finished %}
     <div class="mt-2 font-black text-pitch-700 tabular-nums">{{ match.home_score }} × {{ match.away_score }}</div>
     {% endif %}

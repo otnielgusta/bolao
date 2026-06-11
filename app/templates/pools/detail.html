@@ -48,7 +48,7 @@
 {% if tab == 'matches' %}
   {% set grouped = {} %}
   {% for match in matches %}
-    {% set day = match.match_datetime.strftime('%d/%m/%Y') %}
+    {% set day = match.match_datetime|local_strftime('%d/%m/%Y') %}
     {% if day not in grouped %}{% set _ = grouped.update({day: []}) %}{% endif %}
     {% set _ = grouped[day].append(match) %}
   {% endfor %}
@@ -111,7 +111,7 @@
           <div class="font-bold text-sm text-gray-900 truncate">
             {{ match.home_team }} <span class="text-gray-300 font-normal">vs</span> {{ match.away_team }}
           </div>
-          <div class="text-xs text-gray-400 mt-0.5">{{ match.match_datetime.strftime('%d/%m às %H:%M') }} UTC</div>
+          <div class="text-xs text-gray-400 mt-0.5">{{ match.match_datetime|local_strftime('%d/%m às %H:%M') }} BRT</div>
         </div>
         <div class="flex items-center gap-4 shrink-0">
           <div class="text-right">

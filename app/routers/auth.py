@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import bcrypt as _bcrypt
@@ -9,9 +8,10 @@ from itsdangerous import URLSafeSerializer
 from app.database import get_db
 from app.config import settings
 from app.models.user import User
+from app.templating import create_templates
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-templates = Jinja2Templates(directory="app/templates")
+templates = create_templates()
 serializer = URLSafeSerializer(settings.secret_key)
 
 

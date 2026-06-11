@@ -41,7 +41,7 @@
 
     <!-- Local kickoff time + countdown -->
     <div class="text-center text-xs text-gray-400 mb-4">
-      <span x-text="new Date({{ kickoff_ts }} * 1000).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })"></span>
+      <span x-text="new Date({{ kickoff_ts }} * 1000).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })"></span>
       {% if not match.is_finished and not is_past %}
       <template x-if="now < deadline">
         <div class="mt-1 inline-flex items-center gap-1 text-pitch-600 font-semibold tabular-nums">

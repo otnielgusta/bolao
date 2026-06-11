@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import User, Match, Prediction
 from app.routers.auth import require_user
+from app.templating import create_templates
 
 router = APIRouter(prefix="/matches", tags=["matches"])
-templates = Jinja2Templates(directory="app/templates")
+templates = create_templates()
 
 
 @router.get("", response_class=HTMLResponse)
