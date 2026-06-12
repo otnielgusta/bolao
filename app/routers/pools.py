@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import User, Pool, PoolMember, Prediction, Match
 from app.routers.auth import require_user
+from app.services.rules import PREDICTION_DEADLINE_SECONDS
 from app.templating import create_templates
 
 router = APIRouter(prefix="/pools", tags=["pools"])
@@ -69,9 +70,16 @@ async def pool_detail(
     request: Request,
     pool_id: int,
     tab: str = "matches",
+    predictions_tab: str = "general",
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if tab == "my_predictions":
+        tab = "predictions"
+        predictions_tab = "mine"
+    if tab == "predictions" and predictions_tab not in {"general", "mine"}:
+        predictions_tab = "general"
+
     pool = await db.get(Pool, pool_id, options=[selectinload(Pool.owner)])
     if not pool:
         return RedirectResponse("/pools", status_code=303)
@@ -98,12 +106,26 @@ async def pool_detail(
     for p in preds.scalars().all():
         user_predictions[p.match_id] = p
 
+    all_predictions_by_match = {}
+    if tab in {"matches", "predictions"}:
+        all_preds = await db.execute(
+            select(Prediction)
+            .where(Prediction.pool_id == pool_id)
+            .options(selectinload(Prediction.user))
+            .order_by(Prediction.match_id, Prediction.submitted_at)
+        )
+        for p in all_preds.scalars().all():
+            all_predictions_by_match.setdefault(p.match_id, []).append(p)
+
     ranking = []
     if tab == "ranking":
         ranking = await _build_ranking(db, pool_id)
 
     now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
-    match_deadlines = {m.id: m.match_datetime.timestamp() - 600 for m in matches}
+    match_deadlines = {
+        m.id: m.match_datetime.timestamp() - PREDICTION_DEADLINE_SECONDS
+        for m in matches
+    }
 
     return templates.TemplateResponse(request, "pools/detail.html", {
         "user": user,
@@ -111,11 +133,14 @@ async def pool_detail(
         "pool_id": pool_id,
         "matches": matches,
         "user_predictions": user_predictions,
+        "all_predictions_by_match": all_predictions_by_match,
         "ranking": ranking,
         "tab": tab,
+        "predictions_tab": predictions_tab,
         "is_owner": pool.owner_id == user.id,
         "now_timestamp": now_ts,
         "match_deadlines": match_deadlines,
+        "prediction_deadline_seconds": PREDICTION_DEADLINE_SECONDS,
     })
 
 
@@ -153,12 +178,10 @@ async def _build_ranking(db: AsyncSession, pool_id: int):
 
         total = sum(p.points_awarded for p in preds)
         counts = {10: 0, 7: 0, 5: 0, 3: 0, 1: 0, 0: 0}
-        submitted_sum = 0.0
+        last_submitted = 0.0
         for p in preds:
             counts[p.points_awarded] = counts.get(p.points_awarded, 0) + 1
-            submitted_sum += p.submitted_at.timestamp()
-
-        avg_submitted = submitted_sum / len(preds) if preds else float("inf")
+            last_submitted = max(last_submitted, p.submitted_at.timestamp())
 
         ranking.append({
             "display_name": m.user.display_name,
@@ -166,10 +189,10 @@ async def _build_ranking(db: AsyncSession, pool_id: int):
             "counts": counts,
             "count_10": counts[10],
             "count_7": counts[7],
-            "avg_submitted": avg_submitted,
+            "list_submitted_at": last_submitted if preds else float("inf"),
         })
 
-    ranking.sort(key=lambda r: (-r["total"], -r["count_10"], -r["count_7"], r["avg_submitted"]))
+    ranking.sort(key=lambda r: (-r["total"], -r["count_10"], -r["count_7"], r["list_submitted_at"]))
 
     for i, r in enumerate(ranking, 1):
         r["position"] = i

@@ -35,7 +35,7 @@
 
 <!-- Tabs -->
 <div class="flex gap-2 mb-6 bg-white rounded-xl shadow-card p-1.5 w-fit">
-  {% for t, label in [('matches', '⚽ Jogos'), ('ranking', '🏆 Ranking'), ('my_predictions', '📋 Meus Palpites')] %}
+  {% for t, label in [('matches', '⚽ Jogos'), ('ranking', '🏆 Ranking'), ('predictions', '📋 Palpites'), ('rules', '📖 Regras')] %}
   <a href="?tab={{ t }}"
      class="px-4 py-2 text-sm font-bold rounded-lg transition
             {% if tab == t %}bg-pitch-700 text-white shadow-card{% else %}text-gray-500 hover:text-pitch-700 hover:bg-pitch-50{% endif %}">
@@ -60,9 +60,10 @@
       <div class="flex-1 h-px bg-gray-200"></div>
       <span class="text-xs text-gray-400 font-medium">{{ day_matches | length }} jogo{{ 's' if day_matches | length > 1 }}</span>
     </div>
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div class="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {% for match in day_matches %}
         {% set prediction = user_predictions.get(match.id) %}
+        {% set match_predictions = all_predictions_by_match.get(match.id, []) %}
         {% include "matches/_match_card.html" %}
       {% endfor %}
     </div>
@@ -94,8 +95,61 @@
     </div>
   </div>
 
-<!-- ═══ Tab: Meus Palpites ═══ -->
-{% elif tab == 'my_predictions' %}
+<!-- ═══ Tab: Palpites ═══ -->
+{% elif tab == 'predictions' %}
+  <div class="flex gap-2 mb-5 bg-white rounded-xl shadow-card p-1.5 w-fit">
+    {% for p_tab, label in [('general', 'Palpites geral'), ('mine', 'Meus palpites')] %}
+    <a href="?tab=predictions&predictions_tab={{ p_tab }}"
+       class="px-4 py-2 text-sm font-bold rounded-lg transition
+              {% if predictions_tab == p_tab %}bg-pitch-700 text-white shadow-card{% else %}text-gray-500 hover:text-pitch-700 hover:bg-pitch-50{% endif %}">
+      {{ label }}
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if predictions_tab == 'general' %}
+  <div class="space-y-4">
+    {% set has_any_predictions = namespace(value=false) %}
+    {% for match in matches %}
+      {% set match_predictions = all_predictions_by_match.get(match.id, []) %}
+      {% if match_predictions %}
+      {% set has_any_predictions.value = true %}
+      {% set my_prediction = user_predictions.get(match.id) %}
+      <div class="bg-white rounded-2xl shadow-card overflow-hidden">
+        <div class="px-5 py-4 bg-pitch-700 border-b border-pitch-800 text-white">
+          <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div class="min-w-0">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-pitch-100">{{ match.stage }}</span>
+              <div class="font-extrabold text-white mt-0.5">
+                {{ match.home_team }} <span class="text-pitch-200 font-normal">vs</span> {{ match.away_team }}
+              </div>
+              <div class="text-xs text-pitch-100 mt-0.5">{{ match.match_datetime|local_strftime('%d/%m às %H:%M') }} BRT</div>
+            </div>
+            <div class="flex items-center gap-3 shrink-0">
+              {% if my_prediction %}
+              <span class="hidden sm:inline text-[10px] uppercase font-semibold text-pitch-950 bg-gold-400 px-3 py-2 rounded-full">
+                Seu: {{ my_prediction.predicted_home }} × {{ my_prediction.predicted_away }}
+              </span>
+              {% endif %}
+              <span class="text-xs font-bold text-pitch-950 bg-white px-3 py-2 rounded-full">
+                {{ match_predictions | length }} palpite{{ 's' if match_predictions | length != 1 }}
+              </span>
+            </div>
+          </div>
+        </div>
+        {% include "pools/_match_predictions.html" %}
+      </div>
+      {% endif %}
+    {% endfor %}
+    {% if not has_any_predictions.value %}
+    <div class="bg-white rounded-2xl shadow-card p-12 text-center">
+      <div class="text-5xl mb-3">📋</div>
+      <p class="text-gray-500 font-medium">Nenhum palpite foi feito neste bolão ainda.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {% else %}
   {% set my_preds = [] %}
   {% for match in matches %}
     {% if user_predictions.get(match.id) %}{% set _ = my_preds.append(match) %}{% endif %}
@@ -146,5 +200,93 @@
     <a href="?tab=matches" class="inline-block mt-4 text-pitch-700 font-bold text-sm hover:underline">Ver jogos abertos →</a>
   </div>
   {% endif %}
+  {% endif %}
+{% elif tab == 'rules' %}
+  <div class="space-y-6">
+    <div class="bg-white rounded-2xl shadow-card overflow-hidden">
+      <div class="px-5 py-4 bg-pitch-700 text-white">
+        <h2 class="font-extrabold text-lg">Sistema de Pontuação</h2>
+        <p class="text-sm text-pitch-100 mt-1">Pontuação calculada por jogo.</p>
+      </div>
+      <div class="divide-y divide-gray-100">
+        <div class="px-5 py-4">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="font-extrabold text-gray-900">Gabarito: placar exato</h3>
+              <p class="text-sm text-gray-500 mt-1">Você acertou exatamente o placar final do jogo.</p>
+              <p class="text-xs text-gray-400 mt-2">Exemplo: palpite Brasil 2 × 1 Croácia. Resultado Brasil 2 × 1 Croácia.</p>
+            </div>
+            <span class="text-sm font-black text-white bg-pitch-700 px-3 py-1.5 rounded-full shrink-0">10 pts</span>
+          </div>
+        </div>
+        <div class="px-5 py-4">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="font-extrabold text-gray-900">Vencedor ou empate + saldo de gols</h3>
+              <p class="text-sm text-gray-500 mt-1">Você acertou quem venceu, ou que foi empate, e também a diferença de gols.</p>
+              <p class="text-xs text-gray-400 mt-2">Exemplo: palpite Brasil 3 × 1 Croácia, saldo +2. Resultado Brasil 2 × 0 Croácia, saldo +2.</p>
+            </div>
+            <span class="text-sm font-black text-white bg-pitch-600 px-3 py-1.5 rounded-full shrink-0">7 pts</span>
+          </div>
+        </div>
+        <div class="px-5 py-4">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="font-extrabold text-gray-900">Vencedor ou empate + gols de um time</h3>
+              <p class="text-sm text-gray-500 mt-1">Você acertou o resultado do jogo e o número exato de gols de uma seleção.</p>
+              <p class="text-xs text-gray-400 mt-2">Exemplo: palpite Brasil 2 × 0 Croácia. Resultado Brasil 2 × 1 Croácia.</p>
+            </div>
+            <span class="text-sm font-black text-pitch-950 bg-gold-400 px-3 py-1.5 rounded-full shrink-0">5 pts</span>
+          </div>
+        </div>
+        <div class="px-5 py-4">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="font-extrabold text-gray-900">Apenas vencedor ou empate</h3>
+              <p class="text-sm text-gray-500 mt-1">Você acertou quem ganhou, ou que seria empate, mas errou placar e saldo.</p>
+              <p class="text-xs text-gray-400 mt-2">Exemplo: palpite Brasil 1 × 0 Croácia. Resultado Brasil 3 × 2 Croácia.</p>
+            </div>
+            <span class="text-sm font-black text-amber-900 bg-amber-200 px-3 py-1.5 rounded-full shrink-0">3 pts</span>
+          </div>
+        </div>
+        <div class="px-5 py-4">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="font-extrabold text-gray-900">Gols de um time, sem acertar o vencedor</h3>
+              <p class="text-sm text-gray-500 mt-1">Você errou o destino do jogo, mas acertou quantos gols uma seleção faria.</p>
+              <p class="text-xs text-gray-400 mt-2">Exemplo: palpite Brasil 1 × 2 Croácia. Resultado Brasil 1 × 0 Croácia.</p>
+            </div>
+            <span class="text-sm font-black text-gray-700 bg-gray-200 px-3 py-1.5 rounded-full shrink-0">1 pt</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-2">
+      <div class="bg-white rounded-2xl shadow-card p-5">
+        <h2 class="font-extrabold text-gray-900 mb-3">Regras Gerais</h2>
+        <div class="space-y-4 text-sm text-gray-600">
+          <div>
+            <h3 class="font-bold text-gray-900">Prazo de envio</h3>
+            <p class="mt-1">Os palpites devem ser salvos até 5 minutos antes do início de cada jogo. Palpite atrasado não pontua, salvo quando o dono do bolão ativa palpite retroativo.</p>
+          </div>
+          <div>
+            <h3 class="font-bold text-gray-900">Fase de mata-mata</h3>
+            <p class="mt-1">O placar válido é o tempo regulamentar mais prorrogação, até 120 minutos. Pênaltis não entram no placar do bolão.</p>
+            <p class="text-xs text-gray-400 mt-2">Se o jogo terminar 1 × 1 e for decidido nos pênaltis, o resultado do bolão é 1 × 1.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-card p-5">
+        <h2 class="font-extrabold text-gray-900 mb-3">Critérios de Desempate</h2>
+        <ol class="space-y-3 text-sm text-gray-600 list-decimal list-inside">
+          <li>Maior número de gabaritos, ou seja, placares exatos de 10 pontos.</li>
+          <li>Maior número de acertos de vencedor ou empate com saldo, os acertos de 7 pontos.</li>
+          <li>Quem enviou primeiro a lista de palpites pontuados no histórico do app.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
 {% endif %}
 {% endblock %}

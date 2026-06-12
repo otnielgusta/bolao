@@ -1,14 +1,15 @@
-{# Expects: match, prediction (or None), pool_id, pool, now_timestamp, match_deadlines #}
+{# Expects: match, prediction (or None), match_predictions, pool_id, pool, now_timestamp, match_deadlines #}
 {% set deadline_ts = match_deadlines[match.id] %}
-{% set kickoff_ts = deadline_ts + 600 %}
+{% set kickoff_ts = deadline_ts + prediction_deadline_seconds %}
 {% set is_past = now_timestamp > deadline_ts %}
 {% set can_predict = ((not is_past) or match.allow_retroactive) and not match.is_finished %}
 {% set share_prefix = '⚽ *Bolão ' ~ pool.name ~ '*\n' ~ match.stage ~ '\nMeu palpite: ' ~ match.home_team ~ ' ' %}
 {% set share_suffix = ' ' ~ match.away_team %}
 
-<div class="bg-white rounded-2xl shadow-card hover:shadow-lift transition-shadow duration-200 overflow-hidden flex flex-col"
-     x-data="{ deadline: {{ deadline_ts }}, now: Math.floor(Date.now()/1000) }"
-     x-init="setInterval(() => now = Math.floor(Date.now()/1000), 1000)">
+<div class="bg-white rounded-2xl shadow-card hover:shadow-lift transition-shadow duration-200 overflow-hidden flex flex-col cursor-pointer self-start"
+     x-data="{ deadline: {{ deadline_ts }}, now: Math.floor(Date.now()/1000), showPredictions: false }"
+     x-init="setInterval(() => now = Math.floor(Date.now()/1000), 1000)"
+     @click="if (!$event.target.closest('form, button, a, input, select, textarea')) showPredictions = !showPredictions">
 
   <!-- Header strip -->
   <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
@@ -24,6 +25,10 @@
       {% else %}
       <span class="text-[10px] font-bold uppercase bg-pitch-100 text-pitch-700 px-2 py-0.5 rounded-full">Aberto</span>
       {% endif %}
+      <span class="text-[10px] font-bold uppercase bg-white text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">
+        {{ match_predictions | length }} palpite{{ 's' if match_predictions | length != 1 }}
+      </span>
+      <span class="text-xs font-black text-gray-300" x-text="showPredictions ? '−' : '+'"></span>
     </div>
   </div>
 
@@ -164,5 +169,8 @@
         {% endif %}
       {% endif %}
     </div>
+  </div>
+  <div x-show="showPredictions" x-transition x-cloak class="border-t border-gray-100 bg-white" @click.stop>
+    {% include "pools/_match_predictions.html" %}
   </div>
 </div>

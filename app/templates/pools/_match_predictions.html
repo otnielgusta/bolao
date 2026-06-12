@@ -1,0 +1,28 @@
+{% if match_predictions %}
+<div class="divide-y divide-gray-100">
+  {% for pred in match_predictions %}
+  <div class="px-5 py-3 flex items-center justify-between gap-4 flex-wrap {% if pred.user_id == user.id %}bg-pitch-50/60{% endif %}">
+    <div class="min-w-0">
+      <div class="text-sm font-bold text-gray-900 truncate">{{ pred.user.display_name }}</div>
+      <div class="text-[11px] text-gray-400">{{ pred.submitted_at|local_strftime('%d/%m às %H:%M') }} BRT</div>
+    </div>
+    <div class="flex items-center gap-3 shrink-0">
+      <div class="text-lg font-black text-gray-800 tabular-nums">{{ pred.predicted_home }} × {{ pred.predicted_away }}</div>
+      {% if match.is_finished %}
+      <span class="text-xs font-black px-2.5 py-1 rounded-full
+        {% if pred.points_awarded == 10 %}bg-pitch-700 text-white
+        {% elif pred.points_awarded == 7 %}bg-pitch-500 text-white
+        {% elif pred.points_awarded == 5 %}bg-gold-400 text-pitch-900
+        {% elif pred.points_awarded == 3 %}bg-amber-200 text-amber-800
+        {% elif pred.points_awarded == 1 %}bg-gray-200 text-gray-600
+        {% else %}bg-gray-100 text-gray-400{% endif %}">
+        +{{ pred.points_awarded if pred.points_awarded is not none else 0 }}
+      </span>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="px-5 py-6 text-center text-sm text-gray-400 font-medium">Nenhum palpite feito para este jogo.</div>
+{% endif %}

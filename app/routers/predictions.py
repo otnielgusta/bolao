@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import User, Match, Prediction, PoolMember, Pool
 from app.routers.auth import require_user
+from app.services.rules import PREDICTION_DEADLINE_MINUTES
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
 
@@ -41,7 +42,7 @@ async def create_or_update(
         )
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    deadline = match.match_datetime - datetime.timedelta(minutes=10)
+    deadline = match.match_datetime - datetime.timedelta(minutes=PREDICTION_DEADLINE_MINUTES)
 
     if now > deadline:
         if not match.allow_retroactive:
