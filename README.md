@@ -65,6 +65,14 @@ Acesse http://localhost:8000
 make test
 ```
 
+## Documentacao para IAs
+
+Este repositorio tem documentos para handoff entre agentes:
+
+- `AGENTS.md`: instrucoes operacionais para IAs.
+- `docs/AI_CONTEXT.md`: arquitetura, fluxos e regras de negocio.
+- `docs/AI_HANDOFF.md`: checklist para assumir ou entregar trabalho.
+
 ## Regras de Pontuação
 
 | Pontos | Critério |
