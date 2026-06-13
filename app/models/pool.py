@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import Boolean, String, DateTime, ForeignKey, func
+from sqlalchemy import Boolean, String, DateTime, ForeignKey, func, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.user import Base
@@ -15,7 +15,14 @@ class Pool(Base):
     description: Mapped[str] = mapped_column(String(500), default="")
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     show_predictions_before_deadline: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Public ranking page is opt-in; off by default to avoid id-enumeration leaks.
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     invite_code: Mapped[str] = mapped_column(
+        String(36), unique=True, default=lambda: str(uuid.uuid4())
+    )
+    # Unguessable token for the public ranking URL (separate from invite_code so
+    # sharing the public page never leaks the join secret).
+    public_slug: Mapped[str] = mapped_column(
         String(36), unique=True, default=lambda: str(uuid.uuid4())
     )
     created_at: Mapped[datetime.datetime] = mapped_column(

@@ -12,6 +12,7 @@ from app.models import User, Pool, PoolMember, Prediction, Match, RankingSnapsho
 from app.routers.auth import require_user
 from app.services.scoring import calculate_points
 from app.services.ranking import build_ranking, ensure_pool_snapshots
+from app.services.ratelimit import allow, client_ip
 from app.services.rules import PREDICTION_DEADLINE_SECONDS
 from app.templating import APP_TIMEZONE, create_templates, local_datetime, local_strftime
 
@@ -69,7 +70,12 @@ async def create_pool(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    pool = Pool(name=name, description=description, owner_id=user.id)
+    if not allow(f"pool_create:{user.id}", limit=15, window_seconds=3600):
+        raise HTTPException(429, "Muitos bolões criados. Aguarde antes de criar outro.")
+    name = name.strip()
+    if not name:
+        raise HTTPException(400, "Informe um nome para o bolão.")
+    pool = Pool(name=name[:200], description=description.strip()[:500], owner_id=user.id)
     db.add(pool)
     await db.flush()
     db.add(PoolMember(pool_id=pool.id, user_id=user.id))
@@ -400,18 +406,23 @@ async def day_summary_copy(
     )
 
 
-@router.get("/{pool_id}/public", response_class=HTMLResponse)
+@router.get("/share/{public_slug}", response_class=HTMLResponse)
 async def public_pool(
     request: Request,
-    pool_id: int,
+    public_slug: str,
     db: AsyncSession = Depends(get_db),
 ):
-    pool = await db.get(Pool, pool_id, options=[selectinload(Pool.owner)])
-    if not pool:
+    result = await db.execute(
+        select(Pool)
+        .where(Pool.public_slug == public_slug)
+        .options(selectinload(Pool.owner))
+    )
+    pool = result.scalar_one_or_none()
+    if not pool or not pool.is_public:
         raise HTTPException(404, "Bolão não encontrado.")
     matches_result = await db.execute(select(Match).order_by(Match.match_datetime))
     matches = matches_result.scalars().all()
-    ranking = await build_ranking(db, pool_id)
+    ranking = await build_ranking(db, pool.id)
     recent_results = [match for match in matches if match.is_finished][-8:]
     return templates.TemplateResponse(request, "pools/public.html", {
         "user": None,

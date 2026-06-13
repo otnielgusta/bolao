@@ -218,11 +218,13 @@ async def update_pool_settings(
     request: Request,
     pool_id: int,
     show_predictions_before_deadline: str | None = Form(None),
+    is_public: str | None = Form(None),
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
     pool = await require_pool_owner(pool_id, user, db)
     pool.show_predictions_before_deadline = show_predictions_before_deadline == "1"
+    pool.is_public = is_public == "1"
     await db.commit()
     return RedirectResponse(f"/admin/pool/{pool_id}", status_code=303)
 

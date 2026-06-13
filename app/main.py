@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import logging
 from contextlib import asynccontextmanager
 
@@ -7,6 +8,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 
 from app.config import settings
 from app.database import async_session
+from app.middleware import add_security_middleware
 from app.routers import auth, pools, matches, predictions, admin, invite, home, account
 from app.routers.auth import NotAuthenticatedError
 from app.services.autosync import auto_sync_loop
@@ -23,6 +25,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Bolão Copa 2026", lifespan=lifespan)
+
+add_security_middleware(app)
 
 app.include_router(home.router)
 app.include_router(auth.router)
@@ -42,7 +46,7 @@ async def not_authenticated_handler(request: Request, exc: NotAuthenticatedError
 @app.api_route("/internal/sync", methods=["GET", "POST"])
 async def internal_sync(token: str):
     """Site-admin only: forces an immediate sync. Protected by ADMIN_TOKEN."""
-    if not settings.admin_token or token != settings.admin_token:
+    if not settings.admin_token or not hmac.compare_digest(token, settings.admin_token):
         raise HTTPException(403, "Token inválido.")
     async with async_session() as db:
         summary = await sync_results(db)

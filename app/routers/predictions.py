@@ -49,8 +49,8 @@ async def create_or_update(
         if not match.allow_retroactive:
             raise HTTPException(400, "Prazo para palpite encerrado.")
 
-    if predicted_home < 0 or predicted_away < 0:
-        raise HTTPException(400, "Placar não pode ser negativo.")
+    if not (0 <= predicted_home <= 99 and 0 <= predicted_away <= 99):
+        raise HTTPException(400, "Placar deve estar entre 0 e 99.")
 
     pools_written = await save_prediction(
         db, user, pool_id, match_id, predicted_home, predicted_away, now
@@ -117,8 +117,8 @@ async def bulk_create_or_update(
         except ValueError as exc:
             raise HTTPException(400, "Placar invalido.") from exc
 
-        if predicted_home < 0 or predicted_away < 0:
-            raise HTTPException(400, "Placar nao pode ser negativo.")
+        if not (0 <= predicted_home <= 99 and 0 <= predicted_away <= 99):
+            raise HTTPException(400, "Placar deve estar entre 0 e 99.")
 
         deadline = match.match_datetime - datetime.timedelta(
             minutes=PREDICTION_DEADLINE_MINUTES

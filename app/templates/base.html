@@ -98,10 +98,12 @@
           </span>
           <span class="text-sm font-medium text-pitch-100">{{ user.display_name }}</span>
         </a>
-        <a href="/auth/logout"
-           class="text-xs font-semibold text-pitch-200 hover:text-white border border-pitch-600 hover:border-pitch-400 rounded-lg px-3 py-1.5 transition">
-          Sair
-        </a>
+        <form method="POST" action="/auth/logout" class="inline">
+          <button type="submit"
+             class="text-xs font-semibold text-pitch-200 hover:text-white border border-pitch-600 hover:border-pitch-400 rounded-lg px-3 py-1.5 transition">
+            Sair
+          </button>
+        </form>
       </div>
       {% else %}
       <div class="flex items-center gap-2">

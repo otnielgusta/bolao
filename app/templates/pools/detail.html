@@ -17,10 +17,12 @@
       {% endif %}
     </div>
     <div class="flex items-center gap-2">
-      <a href="/pools/{{ pool.id }}/public"
+      {% if pool.is_public %}
+      <a href="/pools/share/{{ pool.public_slug }}"
          class="bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition">
         Página pública
       </a>
+      {% endif %}
       {% if is_owner %}
       <a href="/admin/pool/{{ pool.id }}"
          class="bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition">

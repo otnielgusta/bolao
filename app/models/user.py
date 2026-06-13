@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import Boolean, String, DateTime, func, true
+from sqlalchemy import Boolean, Integer, String, DateTime, func, true
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -18,6 +18,10 @@ class User(Base):
     # When True, saving a prediction copies it to every pool the user belongs to.
     mirror_predictions: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default=true()
+    )
+    # Bumped on logout to invalidate every previously issued session token.
+    token_version: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0"
     )
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
