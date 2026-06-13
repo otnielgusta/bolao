@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import String, DateTime, ForeignKey, func
+from sqlalchemy import Boolean, String, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.user import Base
@@ -14,6 +14,7 @@ class Pool(Base):
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(String(500), default="")
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    show_predictions_before_deadline: Mapped[bool] = mapped_column(Boolean, default=True)
     invite_code: Mapped[str] = mapped_column(
         String(36), unique=True, default=lambda: str(uuid.uuid4())
     )

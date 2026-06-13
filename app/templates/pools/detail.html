@@ -23,8 +23,13 @@
         ⚙️ Administrar
       </a>
       {% endif %}
-      <button x-data="{ copied: false }"
-              @click="navigator.clipboard.writeText(window.location.origin + '/join/{{ pool.invite_code }}'); copied = true; setTimeout(() => copied = false, 2000)"
+      <button x-data='{ copied: false, invitePrefix: {{ ('Entre no bolão ' ~ pool.name ~ ' da Copa 2026: ')|tojson }} }'
+              @click="
+                const link = window.location.origin + '/join/{{ pool.invite_code }}';
+                copyText(invitePrefix + link, 'Convite copiado!');
+                copied = true;
+                setTimeout(() => copied = false, 2000)
+              "
               class="bg-gold-400 hover:bg-gold-500 text-pitch-950 text-xs font-bold px-4 py-2.5 rounded-xl transition active:scale-95">
         <span x-show="!copied">🔗 Copiar Convite</span>
         <span x-show="copied" x-cloak>✓ Copiado!</span>
@@ -46,6 +51,57 @@
 
 <!-- ═══ Tab: Jogos ═══ -->
 {% if tab == 'matches' %}
+<div x-data="{
+       filter: 'all',
+       matchVisible(card) {
+         if (this.filter === 'all') return true;
+         if (this.filter === 'open') return card.dataset.status === 'open';
+         if (this.filter === 'today') return card.dataset.today === '1';
+         if (this.filter === 'today-missing') return card.dataset.today === '1' && card.dataset.missing === '1';
+         if (this.filter === 'missing') return card.dataset.missing === '1';
+         if (this.filter === 'finished') return card.dataset.status === 'finished';
+         return true;
+       }
+     }">
+  <div class="bg-white rounded-2xl shadow-card p-5 mb-5">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+      <div class="min-w-0 flex-1">
+        <h2 class="font-extrabold text-gray-900">Seus palpites</h2>
+        <p class="text-sm text-gray-500 mt-1">
+          {% if open_missing_count %}
+          Faltam <strong class="text-amber-700">{{ open_missing_count }}</strong> jogo{{ 's' if open_missing_count > 1 }} aberto{{ 's' if open_missing_count > 1 }} para palpitar.
+          {% else %}
+          Você não tem palpites pendentes em jogos abertos.
+          {% endif %}
+        </p>
+      </div>
+      <div class="flex items-center justify-end gap-2 flex-wrap w-full sm:w-auto">
+        {% if today_missing_count %}
+        <button type="button"
+                @click="filter = 'today-missing'"
+                class="bg-pitch-700 hover:bg-pitch-800 text-white text-xs font-black px-4 py-2.5 rounded-xl transition w-full sm:w-auto">
+          Palpitar hoje ({{ today_missing_count }})
+        </button>
+        {% endif %}
+        <button type="button"
+                @click="filter = 'missing'"
+                class="bg-gold-400 hover:bg-gold-500 text-pitch-950 text-xs font-black px-4 py-2.5 rounded-xl transition w-full sm:w-auto">
+          Palpitar pendentes
+        </button>
+      </div>
+    </div>
+    <div class="flex gap-2 flex-wrap mt-4">
+      {% for value, label in [('all', 'Todos'), ('open', 'Abertos'), ('today', 'Hoje'), ('missing', 'Sem meu palpite'), ('finished', 'Encerrados')] %}
+      <button type="button"
+              @click="filter = '{{ value }}'"
+              class="px-3 py-2 text-xs font-bold rounded-lg transition"
+              :class="filter === '{{ value }}' ? 'bg-pitch-700 text-white shadow-card' : 'bg-gray-50 text-gray-500 hover:bg-pitch-50 hover:text-pitch-700'">
+        {{ label }}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
   {% set grouped = {} %}
   {% for match in matches %}
     {% set day = match.match_datetime|local_strftime('%d/%m/%Y') %}
@@ -57,16 +113,32 @@
   {% set day_date = match_local_dates.get(day_matches[0].id) %}
   {% set starts_open = day_date >= today_local_date %}
   <div class="mb-8" x-data="{ open: {{ 'true' if starts_open else 'false' }} }">
-    <button type="button"
-            class="w-full flex items-center gap-3 mb-4 text-left"
-            @click="open = !open"
-            :aria-expanded="open.toString()">
-      <span class="text-sm font-extrabold text-pitch-900 uppercase tracking-wider">📅 {{ day }}</span>
-      <span class="flex-1 h-px bg-gray-200"></span>
-      <span class="text-xs text-gray-400 font-medium">{{ day_matches | length }} jogo{{ 's' if day_matches | length > 1 }}</span>
-      <span class="w-7 h-7 inline-flex items-center justify-center rounded-full bg-white shadow-card text-xs font-black text-gray-400"
-            x-text="open ? '−' : '+'"></span>
-    </button>
+    <div class="flex items-center gap-3 mb-4">
+      <button type="button"
+              class="flex-1 flex items-center gap-3 text-left"
+              @click="open = !open"
+              :aria-expanded="open.toString()">
+        <span class="text-sm font-extrabold text-pitch-900 uppercase tracking-wider">📅 {{ day }}</span>
+        <span class="flex-1 h-px bg-gray-200"></span>
+        <span class="text-xs text-gray-400 font-medium">{{ day_matches | length }} jogo{{ 's' if day_matches | length > 1 }}</span>
+        <span class="w-7 h-7 inline-flex items-center justify-center rounded-full bg-white shadow-card text-xs font-black text-gray-400"
+              x-text="open ? '−' : '+'"></span>
+      </button>
+      <button type="button"
+              x-data="{ copied: false, loading: false }"
+              :disabled="loading"
+              @click="
+                loading = true;
+                copyExportText('/pools/{{ pool.id }}/days/{{ day_date }}/summary_copy', 'Resumo do dia copiado!')
+                  .then(() => { copied = true; setTimeout(() => copied = false, 2000); })
+                  .catch(() => window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Erro ao copiar.', ok: false } })))
+                  .finally(() => loading = false)
+              "
+              class="text-[10px] uppercase tracking-wide font-black text-pitch-800 bg-white hover:bg-pitch-50 px-3 py-2 rounded-lg shadow-card transition disabled:opacity-50">
+        <span x-show="!copied">Copiar resumo</span>
+        <span x-show="copied" x-cloak>Copiado!</span>
+      </button>
+    </div>
     <div x-show="open"
          x-transition
          {% if not starts_open %}style="display: none;"{% endif %}
@@ -74,6 +146,8 @@
       {% for match in day_matches %}
         {% set prediction = user_predictions.get(match.id) %}
         {% set match_predictions = all_predictions_by_match.get(match.id, []) %}
+        {% set predictions_visible = predictions_visible_by_match.get(match.id, true) %}
+        {% set prediction_release_label = prediction_release_labels.get(match.id) %}
         {% include "matches/_match_card.html" %}
       {% endfor %}
     </div>
@@ -83,6 +157,7 @@
   {% if not matches %}
   <p class="text-center text-gray-400 py-12">Nenhum jogo cadastrado.</p>
   {% endif %}
+</div>
 
 <!-- ═══ Tab: Ranking ═══ -->
 {% elif tab == 'ranking' %}
@@ -90,19 +165,36 @@
        x-data
        x-init="setInterval(async () => {
          try {
-           const r = await fetch('/pools/{{ pool.id }}/ranking_partial');
+           const r = await fetch('/pools/{{ pool.id }}/ranking_partial{% if ranking_date %}?ranking_date={{ ranking_date }}{% elif ranking_stage %}?ranking_stage={{ ranking_stage|urlencode }}{% endif %}');
            if (r.ok) $refs.rankTable.innerHTML = await r.text();
          } catch (e) {}
     }, 30000)">
     <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
-      <h2 class="font-extrabold text-gray-900">Classificação</h2>
+      <div>
+        <h2 class="font-extrabold text-gray-900">{{ ranking_label }}</h2>
+        {% if ranking_user_summary %}
+        <p class="text-xs text-gray-500 mt-1">
+          Você está em <strong>{{ ranking_user_summary.position }}º</strong>
+          {% if ranking_user_summary.position_delta > 0 %}
+          e subiu {{ ranking_user_summary.position_delta }} posição{{ 's' if ranking_user_summary.position_delta > 1 }} desde o último resultado.
+          {% elif ranking_user_summary.position_delta < 0 %}
+          e caiu {{ ranking_user_summary.position_delta|abs }} posição{{ 's' if ranking_user_summary.position_delta|abs > 1 }} desde o último resultado.
+          {% elif not ranking_date %}
+          e manteve sua posição desde o último resultado.
+          {% endif %}
+          {% if ranking_user_summary.points_to_pass %}
+          Faltam {{ ranking_user_summary.points_to_pass }} pts para passar {{ ranking_user_summary.next_display_name }}.
+          {% endif %}
+        </p>
+        {% endif %}
+      </div>
       <div class="flex items-center justify-end gap-3 flex-wrap">
         <button type="button"
                 x-data="{ copied: false, loading: false }"
                 :disabled="loading"
                 @click="
                   loading = true;
-                  copyExportText('/pools/{{ pool.id }}/ranking_copy', 'Classificação copiada!')
+                  copyExportText('/pools/{{ pool.id }}/ranking_copy{% if ranking_date %}?ranking_date={{ ranking_date }}{% elif ranking_stage %}?ranking_stage={{ ranking_stage|urlencode }}{% endif %}', 'Classificação copiada!')
                     .then(() => { copied = true; setTimeout(() => copied = false, 2000); })
                     .catch(() => window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Erro ao copiar.', ok: false } })))
                     .finally(() => loading = false)
@@ -115,6 +207,24 @@
           <span class="w-1.5 h-1.5 rounded-full bg-pitch-500 animate-pulse"></span> Atualiza a cada 30s
         </span>
       </div>
+    </div>
+    <div class="px-5 py-3 border-b border-gray-100 flex gap-2 flex-wrap">
+      <a href="?tab=ranking"
+         class="px-3 py-2 text-xs font-bold rounded-lg transition {% if not ranking_date and not ranking_stage %}bg-pitch-700 text-white shadow-card{% else %}bg-gray-50 text-gray-500 hover:bg-pitch-50 hover:text-pitch-700{% endif %}">
+        Geral
+      </a>
+      {% for day in ranking_days %}
+      <a href="?tab=ranking&ranking_date={{ day.value }}"
+         class="px-3 py-2 text-xs font-bold rounded-lg transition {% if ranking_date == day.value %}bg-pitch-700 text-white shadow-card{% else %}bg-gray-50 text-gray-500 hover:bg-pitch-50 hover:text-pitch-700{% endif %}">
+        {{ day.label }}
+      </a>
+      {% endfor %}
+      {% for stage in ranking_stages %}
+      <a href="?tab=ranking&ranking_stage={{ stage|urlencode }}"
+         class="px-3 py-2 text-xs font-bold rounded-lg transition {% if ranking_stage == stage %}bg-pitch-700 text-white shadow-card{% else %}bg-gray-50 text-gray-500 hover:bg-pitch-50 hover:text-pitch-700{% endif %}">
+        {{ stage }}
+      </a>
+      {% endfor %}
     </div>
     <div x-ref="rankTable">
       {% include "pools/_ranking_table.html" %}
@@ -141,6 +251,8 @@
       {% if match_predictions %}
       {% set has_any_predictions.value = true %}
       {% set my_prediction = user_predictions.get(match.id) %}
+      {% set predictions_visible = predictions_visible_by_match.get(match.id, true) %}
+      {% set prediction_release_label = prediction_release_labels.get(match.id) %}
       <div class="bg-white rounded-2xl shadow-card overflow-hidden">
         <div class="px-5 py-4 bg-pitch-700 border-b border-pitch-800 text-white">
           <div class="flex items-center justify-between gap-4 flex-wrap">

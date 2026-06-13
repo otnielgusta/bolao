@@ -3,10 +3,20 @@
 {% set kickoff_ts = deadline_ts + prediction_deadline_seconds %}
 {% set is_past = now_timestamp > deadline_ts %}
 {% set can_predict = ((not is_past) or match.allow_retroactive) and not match.is_finished %}
+{% set needs_prediction = can_predict and prediction is none %}
+{% set match_status = 'finished' if match.is_finished else ('open' if can_predict else 'locked') %}
+{% set match_is_today = match_local_dates.get(match.id) == today_local_date %}
+{% set predictions_visible = predictions_visible|default(true) %}
 {% set share_prefix = '⚽ *Bolão ' ~ pool.name ~ '*\n' ~ match.stage ~ '\nMeu palpite: ' ~ match.home_team ~ ' ' %}
 {% set share_suffix = ' ' ~ match.away_team %}
 
-<div class="bg-white rounded-2xl shadow-card hover:shadow-lift transition-shadow duration-200 overflow-hidden flex flex-col cursor-pointer self-start"
+<div data-match-card
+     data-status="{{ match_status }}"
+     data-today="{{ '1' if match_is_today else '0' }}"
+     data-missing="{{ '1' if needs_prediction else '0' }}"
+     x-show="matchVisible($el)"
+     x-transition
+     class="bg-white rounded-2xl shadow-card hover:shadow-lift transition-shadow duration-200 overflow-hidden flex flex-col cursor-pointer self-start {% if needs_prediction %}ring-2 ring-amber-300{% endif %}"
      x-data="{ deadline: {{ deadline_ts }}, now: Math.floor(Date.now()/1000), showPredictions: false }"
      x-init="setInterval(() => now = Math.floor(Date.now()/1000), 1000)"
      @click="if (!$event.target.closest('form, button, a, input, select, textarea')) showPredictions = !showPredictions">
@@ -28,6 +38,9 @@
       <span class="text-[10px] font-bold uppercase bg-white text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">
         {{ match_predictions | length }} palpite{{ 's' if match_predictions | length != 1 }}
       </span>
+      {% if needs_prediction %}
+      <span class="text-[10px] font-black uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Pendente</span>
+      {% endif %}
       <button type="button"
               x-data="{ copied: false, loading: false }"
               :disabled="loading"
