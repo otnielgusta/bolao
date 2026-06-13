@@ -21,7 +21,14 @@
         </td>
         <td class="px-4 py-3">
           <div class="flex items-center gap-2 flex-wrap">
+            {% if pool is defined and user %}
+            <a href="/pools/{{ pool.id }}/members/{{ r.user_id }}"
+               class="font-bold text-gray-900 hover:text-pitch-700 hover:underline">
+              {{ r.display_name }}
+            </a>
+            {% else %}
             <span class="font-bold text-gray-900">{{ r.display_name }}</span>
+            {% endif %}
             {% if r.is_current_user %}
             <span class="text-[10px] uppercase tracking-wide font-black text-pitch-700 bg-pitch-100 px-2 py-0.5 rounded-full">Você</span>
             {% endif %}

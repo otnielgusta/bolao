@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import Match, Prediction
+from app.services.ranking import create_match_snapshots_for_all_pools
 from app.services.scoring import calculate_points
 from app.services.teams import TEAMS
 
@@ -152,6 +153,7 @@ async def sync_results(db: AsyncSession) -> dict:
                 local.is_finished = True
                 summary["finished"] += 1
                 summary["predictions_scored"] += await _recalculate_points(db, local)
+                await create_match_snapshots_for_all_pools(db, local)
 
     await db.commit()
     return summary

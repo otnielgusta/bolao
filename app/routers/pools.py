@@ -3,14 +3,15 @@ from collections.abc import Sequence
 
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
-from sqlalchemy import select, func
+from sqlalchemy import desc, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.models import User, Pool, PoolMember, Prediction, Match
+from app.models import User, Pool, PoolMember, Prediction, Match, RankingSnapshot
 from app.routers.auth import require_user
 from app.services.scoring import calculate_points
+from app.services.ranking import build_ranking, ensure_pool_snapshots
 from app.services.rules import PREDICTION_DEADLINE_SECONDS
 from app.templating import APP_TIMEZONE, create_templates, local_datetime, local_strftime
 
@@ -32,17 +33,26 @@ async def dashboard(
     memberships = memberships.scalars().all()
 
     pool_scores = {}
+    pool_prediction_counts = {}
     for m in memberships:
         result = await db.execute(
             select(func.coalesce(func.sum(Prediction.points_awarded), 0))
             .where(Prediction.pool_id == m.pool_id, Prediction.user_id == user.id)
         )
         pool_scores[m.pool_id] = result.scalar()
+        count_result = await db.execute(
+            select(func.count(Prediction.id)).where(
+                Prediction.pool_id == m.pool_id,
+                Prediction.user_id == user.id,
+            )
+        )
+        pool_prediction_counts[m.pool_id] = count_result.scalar()
 
     return templates.TemplateResponse(request, "pools/dashboard.html", {
         "user": user,
         "memberships": memberships,
         "pool_scores": pool_scores,
+        "pool_prediction_counts": pool_prediction_counts,
     })
 
 
@@ -151,8 +161,10 @@ async def pool_detail(
     today_missing_count = 0
     open_count = 0
     finished_count = 0
+    can_predict_by_match = {}
     for match in matches:
         can_predict = _can_predict(match, now)
+        can_predict_by_match[match.id] = can_predict
         if can_predict:
             open_count += 1
         if match.is_finished:
@@ -184,7 +196,7 @@ async def pool_detail(
                 if match.is_finished and match.stage == ranking_stage
             ]
             ranking_label = f"Classificação - {ranking_stage}"
-        ranking = await _build_ranking(db, pool_id, ranking_match_ids)
+        ranking = await build_ranking(db, pool_id, ranking_match_ids)
         previous_positions = None
         if not ranking_date and not ranking_stage:
             previous_positions = await _previous_positions_before_latest_match(
@@ -192,6 +204,17 @@ async def pool_detail(
             )
         _decorate_ranking(ranking, user.id, previous_positions)
         ranking_user_summary = _ranking_user_summary(ranking, user.id)
+
+    activity_events = []
+    if tab == "activity":
+        activity_events = await _build_activity_events(db, pool, matches, now)
+
+    history_summary = None
+    history_rows = []
+    if tab == "history":
+        await ensure_pool_snapshots(db, pool_id, matches)
+        await db.commit()
+        history_summary, history_rows = await _build_history(db, pool_id, user.id)
 
     return templates.TemplateResponse(request, "pools/detail.html", {
         "user": user,
@@ -221,6 +244,11 @@ async def pool_detail(
         "today_missing_count": today_missing_count,
         "open_count": open_count,
         "finished_count": finished_count,
+        "can_predict_by_match": can_predict_by_match,
+        "onboarding_needed": len(user_predictions) == 0,
+        "activity_events": activity_events,
+        "history_summary": history_summary,
+        "history_rows": history_rows,
     })
 
 
@@ -233,7 +261,7 @@ async def ranking_partial(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await _get_member_pool_or_404(db, pool_id, user)
+    pool = await _get_member_pool_or_404(db, pool_id, user)
     ranking_match_ids = None
     previous_positions = None
     if ranking_date or ranking_stage:
@@ -258,9 +286,10 @@ async def ranking_partial(
             pool_id,
             matches.scalars().all(),
         )
-    ranking = await _build_ranking(db, pool_id, ranking_match_ids)
+    ranking = await build_ranking(db, pool_id, ranking_match_ids)
     _decorate_ranking(ranking, user.id, previous_positions)
     return templates.TemplateResponse(request, "pools/_ranking_table.html", {
+        "pool": pool,
         "ranking": ranking,
         "user": user,
     })
@@ -294,7 +323,7 @@ async def ranking_copy(
             if match.stage == ranking_stage
         ]
         label = ranking_stage
-    ranking = await _build_ranking(db, pool_id, ranking_match_ids)
+    ranking = await build_ranking(db, pool_id, ranking_match_ids)
     return _ranking_copy_text(pool, ranking, label)
 
 
@@ -354,11 +383,11 @@ async def day_summary_copy(
         match.id for match in day_matches if match.is_finished
     ]
 
-    day_ranking = await _build_ranking(db, pool_id, finished_day_match_ids)
-    current_ranking = await _build_ranking(db, pool_id)
+    day_ranking = await build_ranking(db, pool_id, finished_day_match_ids)
+    current_ranking = await build_ranking(db, pool_id)
     before_ids, after_ids = _match_ids_before_and_after_day(matches, local_day)
-    before_ranking = await _build_ranking(db, pool_id, before_ids)
-    after_ranking = await _build_ranking(db, pool_id, after_ids)
+    before_ranking = await build_ranking(db, pool_id, before_ids)
+    after_ranking = await build_ranking(db, pool_id, after_ids)
 
     return _day_summary_copy_text(
         pool=pool,
@@ -369,6 +398,251 @@ async def day_summary_copy(
         before_ranking=before_ranking,
         after_ranking=after_ranking,
     )
+
+
+@router.get("/{pool_id}/public", response_class=HTMLResponse)
+async def public_pool(
+    request: Request,
+    pool_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    pool = await db.get(Pool, pool_id, options=[selectinload(Pool.owner)])
+    if not pool:
+        raise HTTPException(404, "Bolão não encontrado.")
+    matches_result = await db.execute(select(Match).order_by(Match.match_datetime))
+    matches = matches_result.scalars().all()
+    ranking = await build_ranking(db, pool_id)
+    recent_results = [match for match in matches if match.is_finished][-8:]
+    return templates.TemplateResponse(request, "pools/public.html", {
+        "user": None,
+        "pool": pool,
+        "ranking": ranking,
+        "recent_results": list(reversed(recent_results)),
+        "finished_count": len([match for match in matches if match.is_finished]),
+    })
+
+
+@router.get("/{pool_id}/members/{member_id}", response_class=HTMLResponse)
+async def member_profile(
+    request: Request,
+    pool_id: int,
+    member_id: int,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    pool = await _get_member_pool_or_404(db, pool_id, user)
+    membership = await db.execute(
+        select(PoolMember)
+        .where(PoolMember.pool_id == pool_id, PoolMember.user_id == member_id)
+        .options(selectinload(PoolMember.user))
+    )
+    membership = membership.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(404, "Participante não encontrado.")
+
+    matches_result = await db.execute(select(Match).order_by(Match.match_datetime))
+    matches = matches_result.scalars().all()
+    await ensure_pool_snapshots(db, pool_id, matches)
+    await db.commit()
+
+    predictions_result = await db.execute(
+        select(Prediction)
+        .where(Prediction.pool_id == pool_id, Prediction.user_id == member_id)
+        .options(selectinload(Prediction.match))
+        .order_by(Prediction.submitted_at.desc())
+    )
+    predictions = predictions_result.scalars().all()
+    scored_predictions = [
+        prediction
+        for prediction in predictions
+        if prediction.points_awarded is not None
+    ]
+    total = sum(prediction.points_awarded for prediction in scored_predictions)
+    exact = len(
+        [
+            prediction
+            for prediction in scored_predictions
+            if prediction.points_awarded == 10
+        ]
+    )
+    finished_count = len(scored_predictions)
+    daily_points: dict[str, int] = {}
+    for prediction in scored_predictions:
+        day = local_strftime(prediction.match.match_datetime, "%d/%m")
+        daily_points[day] = daily_points.get(day, 0) + prediction.points_awarded
+
+    history_result = await db.execute(
+        select(RankingSnapshot, Match)
+        .join(Match, Match.id == RankingSnapshot.match_id)
+        .where(
+            RankingSnapshot.pool_id == pool_id,
+            RankingSnapshot.user_id == member_id,
+        )
+        .order_by(Match.match_datetime)
+    )
+    history = [
+        {"match": match, "position": snapshot.position, "total": snapshot.total}
+        for snapshot, match in history_result.all()
+    ]
+
+    return templates.TemplateResponse(request, "pools/member_profile.html", {
+        "user": user,
+        "pool": pool,
+        "member": membership.user,
+        "predictions": predictions,
+        "best_predictions": sorted(
+            scored_predictions,
+            key=lambda prediction: prediction.points_awarded,
+            reverse=True,
+        )[:8],
+        "daily_points": daily_points,
+        "history": history,
+        "stats": {
+            "total": total,
+            "predictions": len(predictions),
+            "finished": finished_count,
+            "exact": exact,
+            "average": round(total / finished_count, 1) if finished_count else 0,
+        },
+    })
+
+
+async def _build_activity_events(
+    db: AsyncSession,
+    pool: Pool,
+    matches: Sequence[Match],
+    now: datetime.datetime,
+) -> list[dict]:
+    events = [{
+        "at": pool.created_at,
+        "icon": "+",
+        "title": "Bolão criado",
+        "body": pool.name,
+        "tone": "pitch",
+    }]
+
+    members = await db.execute(
+        select(PoolMember)
+        .where(PoolMember.pool_id == pool.id)
+        .options(selectinload(PoolMember.user))
+    )
+    for member in members.scalars().all():
+        events.append({
+            "at": member.joined_at,
+            "icon": "👤",
+            "title": f"{member.user.display_name} entrou no bolão",
+            "body": "Novo participante na disputa.",
+            "tone": "gray",
+        })
+
+    predictions = await db.execute(
+        select(Prediction)
+        .where(Prediction.pool_id == pool.id)
+        .options(selectinload(Prediction.user), selectinload(Prediction.match))
+        .order_by(desc(Prediction.submitted_at))
+        .limit(60)
+    )
+    for prediction in predictions.scalars().all():
+        body = f"{prediction.match.home_team} x {prediction.match.away_team}"
+        if prediction.match.is_finished and prediction.points_awarded is not None:
+            body = f"{body} · +{prediction.points_awarded} pts"
+        events.append({
+            "at": prediction.submitted_at,
+            "icon": "✍",
+            "title": f"{prediction.user.display_name} salvou palpite",
+            "body": body,
+            "tone": "gold" if prediction.points_awarded == 10 else "gray",
+        })
+
+    for match in matches:
+        if not match.is_finished:
+            continue
+        events.append({
+            "at": match.match_datetime,
+            "icon": "✓",
+            "title": "Resultado registrado",
+            "body": (
+                f"{match.home_team} {match.home_score} x "
+                f"{match.away_score} {match.away_team}"
+            ),
+            "tone": "pitch",
+        })
+
+    events.sort(key=lambda event: event["at"] or now, reverse=True)
+    return events[:80]
+
+
+async def _build_history(
+    db: AsyncSession,
+    pool_id: int,
+    user_id: int,
+) -> tuple[dict, list[dict]]:
+    members = await db.execute(
+        select(PoolMember)
+        .where(PoolMember.pool_id == pool_id)
+        .options(selectinload(PoolMember.user))
+    )
+    member_names = {
+        member.user_id: member.user.display_name
+        for member in members.scalars().all()
+    }
+
+    result = await db.execute(
+        select(RankingSnapshot, Match)
+        .join(Match, Match.id == RankingSnapshot.match_id)
+        .where(RankingSnapshot.pool_id == pool_id)
+        .order_by(Match.match_datetime, RankingSnapshot.position)
+    )
+    rows = result.all()
+
+    snapshots_by_match: dict[int, list[RankingSnapshot]] = {}
+    matches_by_id: dict[int, Match] = {}
+    for snapshot, match in rows:
+        snapshots_by_match.setdefault(snapshot.match_id, []).append(snapshot)
+        matches_by_id[match.id] = match
+
+    user_rows = []
+    before_by_user: dict[int, int] = {}
+    best_climb = None
+    leader_days: dict[int, set[datetime.date]] = {}
+
+    for match_id, snapshots in snapshots_by_match.items():
+        match = matches_by_id[match_id]
+        for snapshot in snapshots:
+            if snapshot.position == 1:
+                leader_days.setdefault(snapshot.user_id, set()).add(snapshot.snapshot_date)
+            previous = before_by_user.get(snapshot.user_id)
+            if previous is not None:
+                delta = previous - snapshot.position
+                if delta > 0 and (best_climb is None or delta > best_climb["delta"]):
+                    best_climb = {
+                        "display_name": member_names.get(snapshot.user_id, "Participante"),
+                        "delta": delta,
+                    }
+            before_by_user[snapshot.user_id] = snapshot.position
+            if snapshot.user_id == user_id:
+                user_rows.append({
+                    "match": match,
+                    "date": snapshot.snapshot_date,
+                    "date_label": snapshot.snapshot_date.strftime("%d/%m"),
+                    "position": snapshot.position,
+                    "total": snapshot.total,
+                })
+
+    leader = None
+    for uid, days in leader_days.items():
+        if leader is None or len(days) > leader["days"]:
+            leader = {
+                "display_name": member_names.get(uid, "Participante"),
+                "days": len(days),
+            }
+
+    summary = {
+        "best_climb": best_climb,
+        "leader": leader,
+        "snapshots": len(snapshots_by_match),
+    }
+    return summary, user_rows
 
 
 async def _get_member_pool_or_404(db: AsyncSession, pool_id: int, user: User) -> Pool:
@@ -644,7 +918,7 @@ async def _previous_positions_before_latest_match(
         for match in finished_matches
         if match.match_datetime < latest_match_datetime
     ]
-    previous_ranking = await _build_ranking(db, pool_id, previous_match_ids)
+    previous_ranking = await build_ranking(db, pool_id, previous_match_ids)
     return {row["user_id"]: row["position"] for row in previous_ranking}
 
 
@@ -675,55 +949,3 @@ def _ranking_user_summary(ranking: Sequence[dict], user_id: int) -> dict | None:
         if row["user_id"] == user_id:
             return row
     return None
-
-
-async def _build_ranking(
-    db: AsyncSession,
-    pool_id: int,
-    match_ids: Sequence[int] | None = None,
-):
-    members = await db.execute(
-        select(PoolMember)
-        .where(PoolMember.pool_id == pool_id)
-        .options(selectinload(PoolMember.user))
-    )
-    members = members.scalars().all()
-
-    ranking = []
-    for m in members:
-        if match_ids is not None and not match_ids:
-            preds = []
-        else:
-            query = select(Prediction).where(
-                Prediction.pool_id == pool_id,
-                Prediction.user_id == m.user_id,
-                Prediction.points_awarded.isnot(None),
-            )
-            if match_ids is not None:
-                query = query.where(Prediction.match_id.in_(list(match_ids)))
-            preds_result = await db.execute(query)
-            preds = preds_result.scalars().all()
-
-        total = sum(p.points_awarded for p in preds)
-        counts = {10: 0, 7: 0, 5: 0, 3: 0, 1: 0, 0: 0}
-        last_submitted = 0.0
-        for p in preds:
-            counts[p.points_awarded] = counts.get(p.points_awarded, 0) + 1
-            last_submitted = max(last_submitted, p.submitted_at.timestamp())
-
-        ranking.append({
-            "user_id": m.user_id,
-            "display_name": m.user.display_name,
-            "total": total,
-            "counts": counts,
-            "count_10": counts[10],
-            "count_7": counts[7],
-            "list_submitted_at": last_submitted if preds else float("inf"),
-        })
-
-    ranking.sort(key=lambda r: (-r["total"], -r["count_10"], -r["count_7"], r["list_submitted_at"]))
-
-    for i, r in enumerate(ranking, 1):
-        r["position"] = i
-
-    return ranking
