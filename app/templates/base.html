@@ -32,6 +32,14 @@
       }
     }
   </script>
+  <script>
+    window.copyExportText = async (url, successMessage) => {
+      const response = await fetch(url, { headers: { Accept: 'text/plain' } });
+      if (!response.ok) throw new Error('Falha ao copiar.');
+      await navigator.clipboard.writeText(await response.text());
+      window.dispatchEvent(new CustomEvent('toast', { detail: { message: successMessage } }));
+    };
+  </script>
   <style>
     [x-cloak] { display: none !important; }
     .text-balance { text-wrap: balance; }

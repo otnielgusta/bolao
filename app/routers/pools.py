@@ -1,7 +1,7 @@
 import datetime
 
-from fastapi import APIRouter, Depends, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, Request, Form, HTTPException
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -9,8 +9,9 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import User, Pool, PoolMember, Prediction, Match
 from app.routers.auth import require_user
+from app.services.scoring import calculate_points
 from app.services.rules import PREDICTION_DEADLINE_SECONDS
-from app.templating import create_templates
+from app.templating import create_templates, local_datetime, local_strftime
 
 router = APIRouter(prefix="/pools", tags=["pools"])
 templates = create_templates()
@@ -121,9 +122,14 @@ async def pool_detail(
     if tab == "ranking":
         ranking = await _build_ranking(db, pool_id)
 
-    now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    now_ts = now.timestamp()
     match_deadlines = {
         m.id: m.match_datetime.timestamp() - PREDICTION_DEADLINE_SECONDS
+        for m in matches
+    }
+    match_local_dates = {
+        m.id: local_datetime(m.match_datetime).date().isoformat()
         for m in matches
     }
 
@@ -140,6 +146,8 @@ async def pool_detail(
         "is_owner": pool.owner_id == user.id,
         "now_timestamp": now_ts,
         "match_deadlines": match_deadlines,
+        "match_local_dates": match_local_dates,
+        "today_local_date": local_datetime(now).date().isoformat(),
         "prediction_deadline_seconds": PREDICTION_DEADLINE_SECONDS,
     })
 
@@ -151,10 +159,138 @@ async def ranking_partial(
     user: User = Depends(require_user),
     db: AsyncSession = Depends(get_db),
 ):
+    await _get_member_pool_or_404(db, pool_id, user)
     ranking = await _build_ranking(db, pool_id)
     return templates.TemplateResponse(request, "pools/_ranking_table.html", {
         "ranking": ranking,
     })
+
+
+@router.get("/{pool_id}/ranking_copy", response_class=PlainTextResponse)
+async def ranking_copy(
+    pool_id: int,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    pool = await _get_member_pool_or_404(db, pool_id, user)
+    ranking = await _build_ranking(db, pool_id)
+    return _ranking_copy_text(pool, ranking)
+
+
+@router.get(
+    "/{pool_id}/matches/{match_id}/predictions_copy",
+    response_class=PlainTextResponse,
+)
+async def match_predictions_copy(
+    pool_id: int,
+    match_id: int,
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    pool = await _get_member_pool_or_404(db, pool_id, user)
+    match = await db.get(Match, match_id)
+    if not match:
+        raise HTTPException(status_code=404, detail="Jogo nao encontrado.")
+
+    preds = await db.execute(
+        select(Prediction)
+        .where(Prediction.pool_id == pool_id, Prediction.match_id == match_id)
+        .options(selectinload(Prediction.user))
+        .order_by(Prediction.submitted_at, Prediction.id)
+    )
+    predictions = preds.scalars().all()
+
+    return _match_predictions_copy_text(pool, match, predictions)
+
+
+async def _get_member_pool_or_404(db: AsyncSession, pool_id: int, user: User) -> Pool:
+    pool = await db.get(Pool, pool_id)
+    if not pool:
+        raise HTTPException(status_code=404, detail="Bolao nao encontrado.")
+
+    membership = await db.execute(
+        select(PoolMember.id).where(
+            PoolMember.pool_id == pool_id,
+            PoolMember.user_id == user.id,
+        )
+    )
+    if membership.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Bolao nao encontrado.")
+
+    return pool
+
+
+def _format_brt(value: datetime.datetime | None) -> str:
+    formatted = local_strftime(value, "%d/%m/%Y %H:%M")
+    return f"{formatted} BRT" if formatted else ""
+
+
+def _ranking_copy_text(pool: Pool, ranking: list[dict]) -> str:
+    lines = [
+        f"Classificacao - Bolao {pool.name}",
+        "",
+    ]
+    if not ranking:
+        lines.append("Nenhum palpite pontuado ainda.")
+        return "\n".join(lines)
+
+    for r in ranking:
+        lines.append(
+            f"{r['position']}. {r['display_name']} - {r['total']} pts "
+            f"(10:{r['counts'][10]} 7:{r['counts'][7]} 5:{r['counts'][5]} "
+            f"3:{r['counts'][3]} 1:{r['counts'][1]} 0:{r['counts'][0]})"
+        )
+
+    return "\n".join(lines)
+
+
+def _match_predictions_copy_text(
+    pool: Pool,
+    match: Match,
+    predictions: list[Prediction],
+) -> str:
+    lines = [
+        f"Palpites - Bolao {pool.name}",
+        match.stage,
+        f"{match.home_team} x {match.away_team}",
+        _format_brt(match.match_datetime),
+    ]
+
+    if match.is_finished:
+        lines.append(f"Resultado: {match.home_score} x {match.away_score}")
+
+    lines.append("")
+
+    if not predictions:
+        lines.append("Nenhum palpite feito para este jogo.")
+        return "\n".join(lines)
+
+    for pred in predictions:
+        line = (
+            f"{pred.user.display_name}: "
+            f"{pred.predicted_home} x {pred.predicted_away}"
+        )
+        points = _points_for_finished_match(match, pred)
+        if points is not None:
+            line = f"{line} (+{points} pts)"
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def _points_for_finished_match(match: Match, pred: Prediction) -> int | None:
+    if not match.is_finished:
+        return None
+    if pred.points_awarded is not None:
+        return pred.points_awarded
+    if match.home_score is None or match.away_score is None:
+        return None
+    return calculate_points(
+        pred.predicted_home,
+        pred.predicted_away,
+        match.home_score,
+        match.away_score,
+    )
 
 
 async def _build_ranking(db: AsyncSession, pool_id: int):

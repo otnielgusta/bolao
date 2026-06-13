@@ -54,13 +54,23 @@
   {% endfor %}
 
   {% for day, day_matches in grouped.items() %}
-  <div class="mb-8">
-    <div class="flex items-center gap-3 mb-4">
-      <h3 class="text-sm font-extrabold text-pitch-900 uppercase tracking-wider">📅 {{ day }}</h3>
-      <div class="flex-1 h-px bg-gray-200"></div>
+  {% set day_date = match_local_dates.get(day_matches[0].id) %}
+  {% set starts_open = day_date >= today_local_date %}
+  <div class="mb-8" x-data="{ open: {{ 'true' if starts_open else 'false' }} }">
+    <button type="button"
+            class="w-full flex items-center gap-3 mb-4 text-left"
+            @click="open = !open"
+            :aria-expanded="open.toString()">
+      <span class="text-sm font-extrabold text-pitch-900 uppercase tracking-wider">📅 {{ day }}</span>
+      <span class="flex-1 h-px bg-gray-200"></span>
       <span class="text-xs text-gray-400 font-medium">{{ day_matches | length }} jogo{{ 's' if day_matches | length > 1 }}</span>
-    </div>
-    <div class="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <span class="w-7 h-7 inline-flex items-center justify-center rounded-full bg-white shadow-card text-xs font-black text-gray-400"
+            x-text="open ? '−' : '+'"></span>
+    </button>
+    <div x-show="open"
+         x-transition
+         {% if not starts_open %}style="display: none;"{% endif %}
+         class="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {% for match in day_matches %}
         {% set prediction = user_predictions.get(match.id) %}
         {% set match_predictions = all_predictions_by_match.get(match.id, []) %}
@@ -83,12 +93,28 @@
            const r = await fetch('/pools/{{ pool.id }}/ranking_partial');
            if (r.ok) $refs.rankTable.innerHTML = await r.text();
          } catch (e) {}
-       }, 30000)">
-    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+    }, 30000)">
+    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
       <h2 class="font-extrabold text-gray-900">Classificação</h2>
-      <span class="text-[10px] uppercase tracking-wide font-semibold text-gray-400 flex items-center gap-1.5">
-        <span class="w-1.5 h-1.5 rounded-full bg-pitch-500 animate-pulse"></span> Atualiza a cada 30s
-      </span>
+      <div class="flex items-center justify-end gap-3 flex-wrap">
+        <button type="button"
+                x-data="{ copied: false, loading: false }"
+                :disabled="loading"
+                @click="
+                  loading = true;
+                  copyExportText('/pools/{{ pool.id }}/ranking_copy', 'Classificação copiada!')
+                    .then(() => { copied = true; setTimeout(() => copied = false, 2000); })
+                    .catch(() => window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Erro ao copiar.', ok: false } })))
+                    .finally(() => loading = false)
+                "
+                class="text-[10px] uppercase tracking-wide font-black text-pitch-950 bg-gold-400 hover:bg-gold-500 px-3 py-2 rounded-lg transition disabled:opacity-50">
+          <span x-show="!copied">Copiar</span>
+          <span x-show="copied" x-cloak>Copiado!</span>
+        </button>
+        <span class="text-[10px] uppercase tracking-wide font-semibold text-gray-400 flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-pitch-500 animate-pulse"></span> Atualiza a cada 30s
+        </span>
+      </div>
     </div>
     <div x-ref="rankTable">
       {% include "pools/_ranking_table.html" %}
@@ -125,7 +151,7 @@
               </div>
               <div class="text-xs text-pitch-100 mt-0.5">{{ match.match_datetime|local_strftime('%d/%m às %H:%M') }} BRT</div>
             </div>
-            <div class="flex items-center gap-3 shrink-0">
+            <div class="flex items-center justify-end gap-3 shrink-0 flex-wrap">
               {% if my_prediction %}
               <span class="hidden sm:inline text-[10px] uppercase font-semibold text-pitch-950 bg-gold-400 px-3 py-2 rounded-full">
                 Seu: {{ my_prediction.predicted_home }} × {{ my_prediction.predicted_away }}
@@ -134,6 +160,20 @@
               <span class="text-xs font-bold text-pitch-950 bg-white px-3 py-2 rounded-full">
                 {{ match_predictions | length }} palpite{{ 's' if match_predictions | length != 1 }}
               </span>
+              <button type="button"
+                      x-data="{ copied: false, loading: false }"
+                      :disabled="loading"
+                      @click="
+                        loading = true;
+                        copyExportText('/pools/{{ pool.id }}/matches/{{ match.id }}/predictions_copy', 'Palpites copiados!')
+                          .then(() => { copied = true; setTimeout(() => copied = false, 2000); })
+                          .catch(() => window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Erro ao copiar.', ok: false } })))
+                          .finally(() => loading = false)
+                      "
+                      class="text-[10px] uppercase tracking-wide font-black text-pitch-950 bg-gold-400 hover:bg-gold-500 px-3 py-2 rounded-full transition disabled:opacity-50">
+                <span x-show="!copied">Copiar</span>
+                <span x-show="copied" x-cloak>Copiado!</span>
+              </button>
             </div>
           </div>
         </div>

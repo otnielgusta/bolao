@@ -14,7 +14,7 @@
   <!-- Header strip -->
   <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
     <span class="text-[11px] font-bold uppercase tracking-wider text-pitch-700">{{ match.stage }}</span>
-    <div class="flex items-center gap-1.5">
+    <div class="flex items-center justify-end gap-1.5 flex-wrap">
       {% if match.allow_retroactive and not match.is_finished %}
       <span class="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Retroativo</span>
       {% endif %}
@@ -28,6 +28,20 @@
       <span class="text-[10px] font-bold uppercase bg-white text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">
         {{ match_predictions | length }} palpite{{ 's' if match_predictions | length != 1 }}
       </span>
+      <button type="button"
+              x-data="{ copied: false, loading: false }"
+              :disabled="loading"
+              @click.stop="
+                loading = true;
+                copyExportText('/pools/{{ pool.id }}/matches/{{ match.id }}/predictions_copy', 'Palpites copiados!')
+                  .then(() => { copied = true; setTimeout(() => copied = false, 2000); })
+                  .catch(() => window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Erro ao copiar.', ok: false } })))
+                  .finally(() => loading = false)
+              "
+              class="text-[10px] font-black uppercase bg-gold-400 hover:bg-gold-500 text-pitch-950 px-2 py-0.5 rounded-full transition disabled:opacity-50">
+        <span x-show="!copied">Copiar</span>
+        <span x-show="copied" x-cloak>Copiado!</span>
+      </button>
       <span class="text-xs font-black text-gray-300" x-text="showPredictions ? '−' : '+'"></span>
     </div>
   </div>
