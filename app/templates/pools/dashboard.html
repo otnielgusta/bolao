@@ -16,6 +16,7 @@
 {% if memberships %}
 <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
   {% for m in memberships %}
+  {% set prediction_count = pool_prediction_counts.get(m.pool_id, 0) %}
   <a href="/pools/{{ m.pool.id }}"
      class="group bg-white rounded-2xl shadow-card hover:shadow-lift hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
     <div class="h-1.5 bg-gradient-to-r from-pitch-600 via-gold-400 to-pitch-600"></div>
@@ -34,6 +35,20 @@
       <div class="flex items-baseline gap-1.5">
         <span class="text-3xl font-black text-pitch-700 tabular-nums">{{ pool_scores.get(m.pool_id, 0) }}</span>
         <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">pontos</span>
+      </div>
+      <div class="mt-4 flex items-center justify-between gap-3">
+        <span class="text-xs font-semibold text-gray-400">
+          {{ prediction_count }} palpite{{ 's' if prediction_count != 1 }}
+        </span>
+        {% if prediction_count == 0 %}
+        <span class="text-[10px] font-black uppercase tracking-wide bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">
+          Começar
+        </span>
+        {% else %}
+        <span class="text-[10px] font-black uppercase tracking-wide bg-pitch-50 text-pitch-700 px-2.5 py-1 rounded-full">
+          Abrir
+        </span>
+        {% endif %}
       </div>
     </div>
   </a>

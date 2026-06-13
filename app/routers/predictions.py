@@ -81,3 +81,94 @@ async def create_or_update(
     if "application/json" in accept:
         return JSONResponse({"ok": True, "message": "Palpite salvo!"})
     return RedirectResponse(f"/pools/{pool_id}?tab=matches", status_code=303)
+
+
+@router.post("/bulk")
+async def bulk_create_or_update(
+    request: Request,
+    pool_id: int = Form(...),
+    user: User = Depends(require_user),
+    db: AsyncSession = Depends(get_db),
+):
+    membership = await db.execute(
+        select(PoolMember).where(
+            PoolMember.pool_id == pool_id, PoolMember.user_id == user.id
+        )
+    )
+    if not membership.scalar_one_or_none():
+        raise HTTPException(400, "Voce nao e membro deste bolao.")
+
+    form = await request.form()
+    match_ids = set()
+    for key in form.keys():
+        if key.startswith("home_"):
+            try:
+                match_ids.add(int(key.removeprefix("home_")))
+            except ValueError:
+                continue
+
+    if not match_ids:
+        return RedirectResponse(f"/pools/{pool_id}?tab=quick", status_code=303)
+
+    matches_result = await db.execute(select(Match).where(Match.id.in_(match_ids)))
+    matches = {match.id: match for match in matches_result.scalars().all()}
+
+    predictions_result = await db.execute(
+        select(Prediction).where(
+            Prediction.user_id == user.id,
+            Prediction.pool_id == pool_id,
+            Prediction.match_id.in_(match_ids),
+        )
+    )
+    predictions = {
+        prediction.match_id: prediction
+        for prediction in predictions_result.scalars().all()
+    }
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for match_id in sorted(match_ids):
+        match = matches.get(match_id)
+        if not match or match.is_finished:
+            continue
+
+        home_raw = str(form.get(f"home_{match_id}", "")).strip()
+        away_raw = str(form.get(f"away_{match_id}", "")).strip()
+        if home_raw == "" and away_raw == "":
+            continue
+        if home_raw == "" or away_raw == "":
+            raise HTTPException(400, "Preencha os dois placares do jogo.")
+
+        try:
+            predicted_home = int(home_raw)
+            predicted_away = int(away_raw)
+        except ValueError as exc:
+            raise HTTPException(400, "Placar invalido.") from exc
+
+        if predicted_home < 0 or predicted_away < 0:
+            raise HTTPException(400, "Placar nao pode ser negativo.")
+
+        deadline = match.match_datetime - datetime.timedelta(
+            minutes=PREDICTION_DEADLINE_MINUTES
+        )
+        if now > deadline and not match.allow_retroactive:
+            continue
+
+        prediction = predictions.get(match_id)
+        if prediction:
+            prediction.predicted_home = predicted_home
+            prediction.predicted_away = predicted_away
+            prediction.submitted_at = now
+        else:
+            db.add(
+                Prediction(
+                    user_id=user.id,
+                    pool_id=pool_id,
+                    match_id=match_id,
+                    predicted_home=predicted_home,
+                    predicted_away=predicted_away,
+                    submitted_at=now,
+                )
+            )
+
+    await db.commit()
+    return RedirectResponse(f"/pools/{pool_id}?tab=quick", status_code=303)

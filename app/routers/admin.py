@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import User, Pool, PoolMember, Match, Prediction
 from app.routers.auth import require_user
+from app.services.ranking import create_match_ranking_snapshots
 from app.services.scoring import calculate_points
 from app.services.rules import PREDICTION_DEADLINE_SECONDS
 from app.templating import create_templates
@@ -36,9 +37,13 @@ async def _build_pending_predictions(
         select(Prediction).where(Prediction.pool_id == pool_id)
     )
     predicted_users_by_match: dict[int, set[int]] = {}
+    prediction_count_by_member: dict[int, int] = {}
     for prediction in predictions.scalars().all():
         predicted_users_by_match.setdefault(prediction.match_id, set()).add(
             prediction.user_id
+        )
+        prediction_count_by_member[prediction.user_id] = (
+            prediction_count_by_member.get(prediction.user_id, 0) + 1
         )
 
     open_matches = [
@@ -55,8 +60,19 @@ async def _build_pending_predictions(
 
     missing_by_member: dict[int, dict] = {}
     missing_open_predictions = 0
+    weak_open_matches = []
     for match in open_matches:
         predicted_users = predicted_users_by_match.get(match.id, set())
+        predicted_count = len(predicted_users)
+        member_count = len(members)
+        weak_open_matches.append({
+            "match": match,
+            "predicted": predicted_count,
+            "missing": max(member_count - predicted_count, 0),
+            "percent": round((predicted_count / member_count) * 100)
+            if member_count
+            else 0,
+        })
         for member in members:
             if member.user_id in predicted_users:
                 continue
@@ -67,10 +83,35 @@ async def _build_pending_predictions(
             )
             item["count"] += 1
 
+    weak_open_matches.sort(
+        key=lambda row: (row["percent"], row["match"].match_datetime)
+    )
+    inactive_members = [
+        {
+            "name": member.user.display_name,
+            "joined_at": member.joined_at,
+            "count": prediction_count_by_member.get(member.user_id, 0),
+        }
+        for member in members
+        if prediction_count_by_member.get(member.user_id, 0) == 0
+    ]
+    expected_open_predictions = len(open_matches) * len(members)
+    completed_open_predictions = (
+        expected_open_predictions - missing_open_predictions
+    )
+
     return {
         "open_matches": open_matches,
         "missing_open_predictions": missing_open_predictions,
         "missing_by_member": missing_by_member,
+        "weak_open_matches": weak_open_matches,
+        "inactive_members": inactive_members,
+        "total_predictions": sum(prediction_count_by_member.values()),
+        "open_completion_pct": round(
+            (completed_open_predictions / expected_open_predictions) * 100
+        )
+        if expected_open_predictions
+        else 100,
     }
 
 
@@ -123,6 +164,16 @@ async def admin_panel(
         "missing_open_predictions": pending["missing_open_predictions"],
         "members_missing_open": len(pending["missing_by_member"]),
         "members": len(members),
+        "inactive_members": len(pending["inactive_members"]),
+        "zero_prediction_open_matches": len(
+            [
+                item
+                for item in pending["weak_open_matches"]
+                if item["predicted"] == 0
+            ]
+        ),
+        "open_completion_pct": pending["open_completion_pct"],
+        "total_predictions": pending["total_predictions"],
     }
 
     return templates.TemplateResponse(request, "admin/panel.html", {
@@ -131,6 +182,7 @@ async def admin_panel(
         "matches": matches,
         "members": members,
         "admin_stats": admin_stats,
+        "pending": pending,
     })
 
 
@@ -206,6 +258,8 @@ async def recalculate_pool_points(
                 match.home_score,
                 match.away_score,
             )
+        for match in finished_matches.values():
+            await create_match_ranking_snapshots(db, pool_id, match)
     await db.commit()
     return RedirectResponse(f"/admin/pool/{pool_id}", status_code=303)
 
@@ -284,6 +338,7 @@ async def register_member_prediction(
         prediction.points_awarded = calculate_points(
             predicted_home, predicted_away, match.home_score, match.away_score
         )
+        await create_match_ranking_snapshots(db, pool_id, match)
 
     await db.commit()
     return RedirectResponse(f"/admin/pool/{pool_id}", status_code=303)
@@ -341,6 +396,7 @@ async def set_result(
             pred.predicted_home, pred.predicted_away,
             home_score, away_score,
         )
+    await create_match_ranking_snapshots(db, pool_id, match)
 
     await db.commit()
     return RedirectResponse(f"/admin/pool/{pool_id}", status_code=303)

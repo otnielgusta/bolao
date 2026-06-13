@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ member.display_name }} - {{ pool.name }}{% endblock %}
+
+{% block content %}
+<a href="/pools/{{ pool.id }}?tab=ranking" class="inline-flex items-center gap-1 text-sm font-semibold text-gray-400 hover:text-pitch-700 transition mb-4">← Voltar ao ranking</a>
+
+<div class="bg-white rounded-2xl shadow-card p-6 mb-5">
+  <div class="flex items-center justify-between gap-4 flex-wrap">
+    <div class="flex items-center gap-4 min-w-0">
+      <span class="w-14 h-14 rounded-full bg-gold-400 text-pitch-950 font-black text-lg flex items-center justify-center uppercase shrink-0">
+        {{ member.display_name[:2] }}
+      </span>
+      <div class="min-w-0">
+        <h1 class="text-2xl font-extrabold tracking-tight text-gray-900 truncate">{{ member.display_name }}</h1>
+        <p class="text-sm text-gray-500">{{ pool.name }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 mb-5">
+  <div class="bg-white rounded-2xl shadow-card p-4">
+    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Pontos</div>
+    <div class="text-2xl font-black text-pitch-700 tabular-nums">{{ stats.total }}</div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-card p-4">
+    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Palpites</div>
+    <div class="text-2xl font-black text-gray-900 tabular-nums">{{ stats.predictions }}</div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-card p-4">
+    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Pontuados</div>
+    <div class="text-2xl font-black text-gray-900 tabular-nums">{{ stats.finished }}</div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-card p-4">
+    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Gabaritos</div>
+    <div class="text-2xl font-black text-gold-500 tabular-nums">{{ stats.exact }}</div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-card p-4">
+    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Média</div>
+    <div class="text-2xl font-black text-gray-900 tabular-nums">{{ stats.average }}</div>
+  </div>
+</div>
+
+<div class="grid gap-5 lg:grid-cols-2">
+  <div class="bg-white rounded-2xl shadow-card overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100">
+      <h2 class="font-extrabold text-gray-900">Melhores palpites</h2>
+    </div>
+    <div class="divide-y divide-gray-100">
+      {% for prediction in best_predictions %}
+      <div class="px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+        <div class="min-w-0">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-pitch-600">{{ prediction.match.stage }}</div>
+          <div class="font-bold text-sm text-gray-900">{{ prediction.match.home_team }} <span class="text-gray-300 font-normal">vs</span> {{ prediction.match.away_team }}</div>
+          <div class="text-xs text-gray-400">{{ prediction.match.match_datetime|local_strftime('%d/%m às %H:%M') }} BRT</div>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="text-lg font-black text-gray-800 tabular-nums">{{ prediction.predicted_home }} × {{ prediction.predicted_away }}</div>
+          <span class="text-xs font-black px-3 py-1.5 rounded-full
+            {% if prediction.points_awarded == 10 %}bg-pitch-700 text-white
+            {% elif prediction.points_awarded == 7 %}bg-pitch-500 text-white
+            {% elif prediction.points_awarded == 5 %}bg-gold-400 text-pitch-900
+            {% elif prediction.points_awarded == 3 %}bg-amber-200 text-amber-800
+            {% elif prediction.points_awarded == 1 %}bg-gray-200 text-gray-600
+            {% else %}bg-gray-100 text-gray-400{% endif %}">
+            +{{ prediction.points_awarded }}
+          </span>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not best_predictions %}
+      <div class="px-5 py-10 text-center text-gray-400">Nenhum palpite pontuado ainda.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-card overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100">
+      <h2 class="font-extrabold text-gray-900">Histórico de posição</h2>
+    </div>
+    <div class="divide-y divide-gray-100">
+      {% for row in history %}
+      <div class="px-5 py-4 flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <div class="text-xs font-semibold text-gray-400">{{ row.match.match_datetime|local_strftime('%d/%m') }}</div>
+          <div class="font-bold text-sm text-gray-900 truncate">{{ row.match.home_team }} <span class="text-gray-300 font-normal">vs</span> {{ row.match.away_team }}</div>
+        </div>
+        <div class="flex items-center gap-4 shrink-0">
+          <div class="text-sm font-black text-pitch-700 tabular-nums">{{ row.position }}º</div>
+          <div class="text-sm font-black text-gray-900 tabular-nums">{{ row.total }} pts</div>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not history %}
+      <div class="px-5 py-10 text-center text-gray-400">Sem histórico de ranking ainda.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if daily_points %}
+<div class="bg-white rounded-2xl shadow-card overflow-hidden mt-5">
+  <div class="px-5 py-4 border-b border-gray-100">
+    <h2 class="font-extrabold text-gray-900">Pontos por dia</h2>
+  </div>
+  <div class="px-5 py-4 flex gap-3 flex-wrap">
+    {% for day, points in daily_points.items() %}
+    <div class="bg-gray-50 rounded-xl px-4 py-3">
+      <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">{{ day }}</div>
+      <div class="text-lg font-black text-pitch-700 tabular-nums">{{ points }} pts</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

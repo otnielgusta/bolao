@@ -17,6 +17,10 @@
       {% endif %}
     </div>
     <div class="flex items-center gap-2">
+      <a href="/pools/{{ pool.id }}/public"
+         class="bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition">
+        Página pública
+      </a>
       {% if is_owner %}
       <a href="/admin/pool/{{ pool.id }}"
          class="bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition">
@@ -39,8 +43,8 @@
 </div>
 
 <!-- Tabs -->
-<div class="flex gap-2 mb-6 bg-white rounded-xl shadow-card p-1.5 w-fit">
-  {% for t, label in [('matches', '⚽ Jogos'), ('ranking', '🏆 Ranking'), ('predictions', '📋 Palpites'), ('rules', '📖 Regras')] %}
+<div class="flex gap-2 mb-6 bg-white rounded-xl shadow-card p-1.5 w-fit flex-wrap">
+  {% for t, label in [('matches', '⚽ Jogos'), ('quick', '⚡ Rápido'), ('ranking', '🏆 Ranking'), ('history', '📈 Histórico'), ('activity', '🕒 Atividade'), ('predictions', '📋 Palpites'), ('rules', '📖 Regras')] %}
   <a href="?tab={{ t }}"
      class="px-4 py-2 text-sm font-bold rounded-lg transition
             {% if tab == t %}bg-pitch-700 text-white shadow-card{% else %}text-gray-500 hover:text-pitch-700 hover:bg-pitch-50{% endif %}">
@@ -228,6 +232,150 @@
     </div>
     <div x-ref="rankTable">
       {% include "pools/_ranking_table.html" %}
+    </div>
+  </div>
+
+<!-- ═══ Tab: Rápido ═══ -->
+{% elif tab == 'quick' %}
+  {% if open_count %}
+  <form method="POST" action="/predictions/bulk" class="bg-white rounded-2xl shadow-card overflow-hidden">
+    <input type="hidden" name="pool_id" value="{{ pool.id }}">
+    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+      <div>
+        <h2 class="font-extrabold text-gray-900">Palpites rápidos</h2>
+        <p class="text-sm text-gray-500 mt-1">
+          {{ open_count }} jogo{{ 's' if open_count > 1 }} aberto{{ 's' if open_count > 1 }}
+          {% if open_missing_count %} · {{ open_missing_count }} pendente{{ 's' if open_missing_count > 1 }}{% endif %}
+        </p>
+      </div>
+      <button type="submit"
+              class="bg-pitch-700 hover:bg-pitch-800 text-white text-xs font-black px-4 py-2.5 rounded-xl transition active:scale-95">
+        Salvar todos
+      </button>
+    </div>
+    <div class="divide-y divide-gray-100">
+      {% for match in matches %}
+      {% if can_predict_by_match.get(match.id) %}
+      {% set prediction = user_predictions.get(match.id) %}
+      <div class="px-5 py-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center hover:bg-gray-50">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 flex-wrap mb-1">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-pitch-600">{{ match.stage }}</span>
+            <span class="text-[10px] font-semibold text-gray-400">{{ match.match_datetime|local_strftime('%d/%m às %H:%M') }} BRT</span>
+            {% if match.allow_retroactive %}
+            <span class="text-[10px] font-bold uppercase bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Retroativo</span>
+            {% endif %}
+          </div>
+          <div class="font-extrabold text-gray-900">
+            {{ match.home_team }} <span class="text-gray-300 font-normal">vs</span> {{ match.away_team }}
+          </div>
+        </div>
+        <div class="flex items-center gap-2 md:justify-end">
+          <input type="number" name="home_{{ match.id }}" min="0" max="20"
+                 value="{{ prediction.predicted_home if prediction is not none else '' }}"
+                 class="w-16 text-center text-lg font-black border-2 border-gray-200 rounded-xl py-2 focus:ring-2 focus:ring-pitch-500 focus:border-pitch-500 outline-none transition"
+                 placeholder="-">
+          <span class="text-gray-300 font-black text-lg">×</span>
+          <input type="number" name="away_{{ match.id }}" min="0" max="20"
+                 value="{{ prediction.predicted_away if prediction is not none else '' }}"
+                 class="w-16 text-center text-lg font-black border-2 border-gray-200 rounded-xl py-2 focus:ring-2 focus:ring-pitch-500 focus:border-pitch-500 outline-none transition"
+                 placeholder="-">
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </form>
+  {% else %}
+  <div class="bg-white rounded-2xl shadow-card p-12 text-center">
+    <div class="text-5xl mb-3">✓</div>
+    <p class="text-gray-500 font-medium">Não há jogos abertos para palpitar agora.</p>
+  </div>
+  {% endif %}
+
+<!-- ═══ Tab: Histórico ═══ -->
+{% elif tab == 'history' %}
+  <div class="grid gap-3 md:grid-cols-3 mb-5">
+    <div class="bg-white rounded-2xl shadow-card p-5">
+      <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Resultados no histórico</div>
+      <div class="text-2xl font-black text-gray-900 tabular-nums">{{ history_summary.snapshots if history_summary else 0 }}</div>
+    </div>
+    <div class="bg-white rounded-2xl shadow-card p-5">
+      <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Maior subida</div>
+      {% if history_summary and history_summary.best_climb %}
+      <div class="text-lg font-black text-pitch-700">{{ history_summary.best_climb.display_name }}</div>
+      <div class="text-xs text-gray-500">+{{ history_summary.best_climb.delta }} {{ 'posições' if history_summary.best_climb.delta > 1 else 'posição' }}</div>
+      {% else %}
+      <div class="text-lg font-black text-gray-300">-</div>
+      {% endif %}
+    </div>
+    <div class="bg-white rounded-2xl shadow-card p-5">
+      <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Mais tempo líder</div>
+      {% if history_summary and history_summary.leader %}
+      <div class="text-lg font-black text-gray-900">{{ history_summary.leader.display_name }}</div>
+      <div class="text-xs text-gray-500">{{ history_summary.leader.days }} dia{{ 's' if history_summary.leader.days > 1 }}</div>
+      {% else %}
+      <div class="text-lg font-black text-gray-300">-</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl shadow-card overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100">
+      <h2 class="font-extrabold text-gray-900">Sua posição após cada resultado</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-gray-50 text-left text-[11px] uppercase tracking-wider text-gray-500">
+            <th class="px-4 py-3 font-bold">Data</th>
+            <th class="px-4 py-3 font-bold">Jogo</th>
+            <th class="px-4 py-3 font-bold text-center">Posição</th>
+            <th class="px-4 py-3 font-bold text-center">Pontos</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for row in history_rows %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-3 text-gray-500 font-semibold">{{ row.date_label }}</td>
+            <td class="px-4 py-3 font-bold text-gray-900">{{ row.match.home_team }} <span class="text-gray-300 font-normal">vs</span> {{ row.match.away_team }}</td>
+            <td class="px-4 py-3 text-center font-black text-pitch-700 tabular-nums">{{ row.position }}º</td>
+            <td class="px-4 py-3 text-center font-black text-gray-900 tabular-nums">{{ row.total }}</td>
+          </tr>
+          {% endfor %}
+          {% if not history_rows %}
+          <tr><td colspan="4" class="text-center py-10 text-gray-400">O histórico aparece depois do primeiro resultado pontuado.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+<!-- ═══ Tab: Atividade ═══ -->
+{% elif tab == 'activity' %}
+  <div class="bg-white rounded-2xl shadow-card overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100">
+      <h2 class="font-extrabold text-gray-900">Atividade recente</h2>
+    </div>
+    <div class="divide-y divide-gray-100">
+      {% for event in activity_events %}
+      <div class="px-5 py-4 flex items-start gap-3">
+        <span class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-sm font-black
+                     {% if event.tone == 'gold' %}bg-gold-400 text-pitch-950{% elif event.tone == 'pitch' %}bg-pitch-700 text-white{% else %}bg-gray-100 text-gray-500{% endif %}">
+          {{ event.icon }}
+        </span>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-start justify-between gap-3 flex-wrap">
+            <div class="font-bold text-gray-900">{{ event.title }}</div>
+            <div class="text-[11px] font-semibold text-gray-400">{{ event.at|local_strftime('%d/%m às %H:%M') }} BRT</div>
+          </div>
+          <div class="text-sm text-gray-500 mt-0.5">{{ event.body }}</div>
+        </div>
+      </div>
+      {% endfor %}
+      {% if not activity_events %}
+      <div class="px-5 py-10 text-center text-gray-400">Nenhuma atividade recente.</div>
+      {% endif %}
     </div>
   </div>
 
