@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+{% block title %}Bolão Copa 2026 — Crie seu bolão e dispute com a galera{% endblock %}
+
+{% block content %}
+<style>
+  @keyframes lp-float { 0%,100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-14px) rotate(6deg); } }
+  @keyframes lp-float-slow { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-22px); } }
+  @keyframes lp-fade-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes lp-glow { 0%,100% { box-shadow: 0 0 0 0 rgba(251,191,36,.55), 0 10px 25px -5px rgba(0,0,0,.25); } 50% { box-shadow: 0 0 0 12px rgba(251,191,36,0), 0 10px 25px -5px rgba(0,0,0,.25); } }
+  @keyframes lp-pan { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+  @keyframes lp-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @keyframes lp-rise { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+
+  .lp-up { opacity: 0; animation: lp-fade-up .7s ease forwards; }
+  .lp-d1 { animation-delay: .08s; } .lp-d2 { animation-delay: .18s; } .lp-d3 { animation-delay: .28s; }
+  .lp-d4 { animation-delay: .38s; } .lp-d5 { animation-delay: .5s; }
+  .lp-float { animation: lp-float 6s ease-in-out infinite; }
+  .lp-float-slow { animation: lp-float-slow 8s ease-in-out infinite; }
+  .lp-glow { animation: lp-glow 2.6s ease-in-out infinite; }
+  .lp-mesh { background: linear-gradient(120deg, #0e2719, #20462f, #2b6a43, #20462f, #0e2719); background-size: 300% 300%; animation: lp-pan 14s ease infinite; }
+  .lp-grad-text { background: linear-gradient(90deg, #fbbf24, #fde68a, #fff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lp-marquee-track { display: flex; width: max-content; animation: lp-marquee 28s linear infinite; }
+  .lp-tilt { transition: transform .35s ease, box-shadow .35s ease; }
+  .lp-tilt:hover { transform: translateY(-6px) scale(1.015); }
+  @media (prefers-reduced-motion: reduce) {
+    .lp-up,.lp-float,.lp-float-slow,.lp-glow,.lp-mesh,.lp-marquee-track { animation: none; opacity: 1; }
+  }
+</style>
+
+<!-- Hero -->
+<section class="-mx-4 -mt-8 px-4 pt-14 pb-20 sm:pt-20 lp-mesh text-white relative overflow-hidden">
+  <!-- floating decorations -->
+  <div class="absolute top-10 left-6 text-6xl opacity-20 lp-float select-none pointer-events-none">⚽</div>
+  <div class="absolute bottom-16 right-8 text-7xl opacity-20 lp-float-slow select-none pointer-events-none">🏆</div>
+  <div class="absolute top-1/3 right-1/4 text-4xl opacity-10 lp-float select-none pointer-events-none">🥅</div>
+  <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-gold-400/10 rounded-full blur-3xl pointer-events-none"></div>
+
+  <div class="max-w-6xl mx-auto relative grid lg:grid-cols-2 gap-12 items-center">
+    <!-- copy -->
+    <div class="text-center lg:text-left">
+      <span class="lp-up inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.15em] bg-white/10 border border-white/15 rounded-full px-4 py-1.5 text-pitch-100 backdrop-blur">
+        🔥 Inscrições abertas · Copa 2026
+      </span>
+      <h1 class="lp-up lp-d1 text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mt-6 text-balance leading-[1.05]">
+        Seu bolão da Copa<br>
+        <span class="lp-grad-text">virou disputa séria.</span>
+      </h1>
+      <p class="lp-up lp-d2 text-base sm:text-lg text-pitch-100/90 mt-5 max-w-lg mx-auto lg:mx-0 text-balance">
+        Crie bolões ilimitados, convide a galera por um link e veja o ranking subir e descer ao vivo a cada gol. Resultados entram sozinhos.
+      </p>
+      <div class="lp-up lp-d3 flex flex-col sm:flex-row items-center lg:justify-start justify-center gap-3 mt-9">
+        <a href="/auth/register"
+           class="lp-glow w-full sm:w-auto bg-gold-400 hover:bg-gold-300 text-pitch-900 font-extrabold text-base px-8 py-4 rounded-xl transition active:scale-95">
+          ⚡ Criar conta grátis
+        </a>
+        <a href="/auth/login"
+           class="w-full sm:w-auto bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-base px-8 py-4 rounded-xl transition active:scale-95 backdrop-blur">
+          Já tenho conta
+        </a>
+      </div>
+      <div class="lp-up lp-d4 flex items-center lg:justify-start justify-center gap-5 sm:gap-7 mt-9 text-pitch-200 text-xs sm:text-sm font-semibold">
+        <span class="flex items-center gap-1.5">⚽ 104 jogos</span>
+        <span class="flex items-center gap-1.5">📊 Ranking ao vivo</span>
+        <span class="flex items-center gap-1.5">🎉 100% grátis</span>
+      </div>
+    </div>
+
+    <!-- product mockup: live ranking card -->
+    <div class="lp-up lp-d3 relative lg:pl-6">
+      <div class="lp-float-slow bg-white text-gray-800 rounded-3xl shadow-2xl p-5 max-w-sm mx-auto rotate-1">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <div class="text-[10px] font-black uppercase tracking-wider text-pitch-600">Classificação · ao vivo</div>
+            <div class="font-extrabold text-gray-900">Bolão da Firma 🏢</div>
+          </div>
+          <span class="flex items-center gap-1 text-[10px] font-bold text-red-500 bg-red-50 px-2 py-1 rounded-full">
+            <span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping"></span> LIVE
+          </span>
+        </div>
+        <div class="space-y-2">
+          {% for r in [
+            {'pos':'1','name':'Marina','pts':'87','tone':'bg-gold-400 text-pitch-900','delta':'▲2'},
+            {'pos':'2','name':'Você','pts':'84','tone':'bg-pitch-100 text-pitch-800','delta':'▲1','me':True},
+            {'pos':'3','name':'Rafa','pts':'81','tone':'bg-pitch-100 text-pitch-800','delta':'▼1'},
+            {'pos':'4','name':'Bia','pts':'76','tone':'bg-gray-100 text-gray-500','delta':'—'}
+          ] %}
+          <div class="flex items-center gap-3 rounded-xl px-3 py-2 {{ 'ring-2 ring-pitch-400 bg-pitch-50' if r.me else 'bg-gray-50' }}">
+            <span class="w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center {{ r.tone }}">{{ r.pos }}</span>
+            <span class="font-semibold text-sm flex-1 {{ 'text-pitch-800' if r.me else 'text-gray-700' }}">{{ r.name }}</span>
+            <span class="text-[10px] font-bold {{ 'text-pitch-600' if '▲' in r.delta else ('text-red-400' if '▼' in r.delta else 'text-gray-300') }}">{{ r.delta }}</span>
+            <span class="font-black tabular-nums text-gray-900">{{ r.pts }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-4 rounded-xl bg-pitch-900 text-white p-3 flex items-center justify-between">
+          <div class="text-xs">
+            <div class="font-bold">🇧🇷 Brasil <span class="text-pitch-300">vs</span> Argentina 🇦🇷</div>
+            <div class="text-pitch-300 text-[10px]">Seu palpite: 2 × 1</div>
+          </div>
+          <span class="text-[10px] font-black bg-gold-400 text-pitch-900 px-2 py-1 rounded-lg">+10 pts</span>
+        </div>
+      </div>
+      <div class="absolute -top-4 -right-2 lp-float bg-white rounded-2xl shadow-xl px-3 py-2 text-xs font-bold text-pitch-700 rotate-3">
+        🚀 +3 posições hoje
+      </div>
+    </div>
+  </div>
+
+  <!-- flag marquee -->
+  <div class="max-w-6xl mx-auto relative mt-14 overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)]">
+    <div class="lp-marquee-track gap-8 text-3xl opacity-80">
+      {% for _ in range(2) %}
+      <span>🇧🇷</span><span>🇦🇷</span><span>🇫🇷</span><span>🇪🇸</span><span>🏴󠁧󠁢󠁥󠁮󠁧󠁿</span><span>🇩🇪</span><span>🇵🇹</span><span>🇳🇱</span>
+      <span>🇺🇸</span><span>🇲🇽</span><span>🇨🇦</span><span>🇯🇵</span><span>🇰🇷</span><span>🇲🇦</span><span>🇭🇷</span><span>🇧🇪</span>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- Stats strip -->
+<section class="max-w-5xl mx-auto -mt-8 relative z-10">
+  <div class="grid grid-cols-3 gap-3 sm:gap-4 bg-white rounded-2xl shadow-lift p-5 sm:p-7">
+    {% for s in [
+      {'big':'∞','label':'Bolões por conta'},
+      {'big':'104','label':'Jogos da Copa'},
+      {'big':'R$0','label':'Para sempre'}
+    ] %}
+    <div class="text-center">
+      <div class="text-3xl sm:text-4xl font-extrabold text-pitch-700 tabular-nums">{{ s.big }}</div>
+      <div class="text-[11px] sm:text-xs uppercase tracking-wide font-bold text-gray-400 mt-1">{{ s.label }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- Features -->
+<section class="max-w-5xl mx-auto mt-20">
+  <div class="text-center mb-10">
+    <span class="text-xs font-black uppercase tracking-widest text-pitch-600">Recursos</span>
+    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-pitch-900 mt-1">Tudo o que seu bolão precisa</h2>
+    <p class="text-sm text-gray-500 mt-2">Da criação ao troféu, sem planilha e sem dor de cabeça.</p>
+  </div>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    {% for f in [
+      {'icon':'🎯','title':'Placar exato vale 10','body':'Cravou o placar? 10 pontos. Quem chega perto também pontua.','bg':'bg-gold-400'},
+      {'icon':'📊','title':'Ranking ao vivo','body':'Classificação atualizada a cada gol, com líder do dia e maiores subidas.','bg':'bg-pitch-500'},
+      {'icon':'🔗','title':'Convide por link','body':'Cada bolão tem um link. Mandou no grupo, a galera entra na hora.','bg':'bg-pitch-700'},
+      {'icon':'🔄','title':'Resultados automáticos','body':'Placares da Copa entram sozinhos e pontuam todo mundo na hora.','bg':'bg-pitch-900'}
+    ] %}
+    <div class="lp-tilt bg-white rounded-2xl shadow-card p-6">
+      <div class="w-12 h-12 rounded-2xl {{ f.bg }} text-white text-2xl flex items-center justify-center mb-4 shadow-card">{{ f.icon }}</div>
+      <h3 class="font-bold text-gray-900 mb-1.5">{{ f.title }}</h3>
+      <p class="text-sm text-gray-500 leading-relaxed">{{ f.body }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- How it works -->
+<section class="max-w-5xl mx-auto mt-20">
+  <div class="text-center mb-12">
+    <span class="text-xs font-black uppercase tracking-widest text-pitch-600">Passo a passo</span>
+    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-pitch-900 mt-1">Palpitando em 2 minutos</h2>
+  </div>
+  <div class="grid sm:grid-cols-3 gap-4 relative">
+    <div class="hidden sm:block absolute top-7 left-[16%] right-[16%] h-0.5 bg-gradient-to-r from-pitch-200 via-pitch-400 to-pitch-200"></div>
+    {% for step in [
+      {'n':'1','icon':'🙋','title':'Crie sua conta','body':'Cadastro grátis com email. Sem cartão, sem pegadinha.'},
+      {'n':'2','icon':'🏟️','title':'Crie ou entre num bolão','body':'Monte o seu ou entre no de um amigo pelo link de convite.'},
+      {'n':'3','icon':'🚀','title':'Palpite e suba','body':'Mande os placares antes do jogo e acompanhe o ranking.'}
+    ] %}
+    <div class="lp-tilt bg-white rounded-2xl shadow-card p-6 text-center relative">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-pitch-700 text-white text-2xl font-black flex items-center justify-center shadow-lift relative">
+        {{ step.icon }}
+        <span class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gold-400 text-pitch-900 text-xs font-black flex items-center justify-center">{{ step.n }}</span>
+      </div>
+      <h3 class="font-bold text-gray-900 mt-4 mb-1.5">{{ step.title }}</h3>
+      <p class="text-sm text-gray-500 leading-relaxed">{{ step.body }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- Scoring -->
+<section class="max-w-5xl mx-auto mt-20">
+  <div class="text-center mb-10">
+    <span class="text-xs font-black uppercase tracking-widest text-pitch-600">Pontuação</span>
+    <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-pitch-900 mt-1">Quanto mais perto, mais pontos</h2>
+  </div>
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    {% for s in [
+      {'pts':'10','label':'Placar exato','tone':'bg-gold-400 text-pitch-900','ring':'ring-2 ring-gold-400'},
+      {'pts':'7','label':'Vencedor + saldo','tone':'bg-pitch-100 text-pitch-800','ring':''},
+      {'pts':'5','label':'Vencedor + um placar','tone':'bg-pitch-100 text-pitch-800','ring':''},
+      {'pts':'3','label':'Só o vencedor','tone':'bg-pitch-100 text-pitch-800','ring':''},
+      {'pts':'1','label':'Um placar certo','tone':'bg-gray-100 text-gray-600','ring':''},
+      {'pts':'0','label':'Errou tudo','tone':'bg-gray-100 text-gray-400','ring':''}
+    ] %}
+    <div class="lp-tilt bg-white rounded-2xl shadow-card p-4 text-center {{ s.ring }}">
+      <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl font-black text-lg tabular-nums {{ s.tone }}">{{ s.pts }}</div>
+      <p class="text-xs text-gray-500 mt-2.5 leading-snug font-medium">{{ s.label }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- Final CTA -->
+<section class="-mx-4 mt-24 -mb-8 px-4 py-20 lp-mesh text-white text-center relative overflow-hidden">
+  <div class="absolute top-8 left-10 text-5xl opacity-20 lp-float select-none pointer-events-none">⚽</div>
+  <div class="absolute bottom-8 right-12 text-6xl opacity-20 lp-float-slow select-none pointer-events-none">🏆</div>
+  <div class="max-w-2xl mx-auto relative">
+    <div class="text-6xl mb-4 lp-float inline-block">🏆</div>
+    <h2 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-balance">Pronto para <span class="lp-grad-text">liderar o bolão?</span></h2>
+    <p class="text-pitch-100/90 mt-4 text-base sm:text-lg">Crie sua conta grátis e monte seu primeiro bolão da Copa 2026 agora.</p>
+    <a href="/auth/register"
+       class="lp-glow inline-block mt-9 bg-gold-400 hover:bg-gold-300 text-pitch-900 font-extrabold text-base sm:text-lg px-12 py-4 rounded-xl transition active:scale-95">
+      ⚡ Começar grátis
+    </a>
+    <p class="text-pitch-300 text-xs mt-5">
+      Já tem conta? <a href="/auth/login" class="text-white font-semibold hover:underline">Entrar</a>
+    </p>
+  </div>
+</section>
+{% endblock %}

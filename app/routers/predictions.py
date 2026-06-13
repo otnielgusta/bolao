@@ -6,8 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models import User, Match, Prediction, PoolMember, Pool
+from app.models import User, Match, PoolMember
 from app.routers.auth import require_user
+from app.services.predictions import save_prediction
 from app.services.rules import PREDICTION_DEADLINE_MINUTES
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
@@ -51,35 +52,19 @@ async def create_or_update(
     if predicted_home < 0 or predicted_away < 0:
         raise HTTPException(400, "Placar não pode ser negativo.")
 
-    result = await db.execute(
-        select(Prediction).where(
-            Prediction.user_id == user.id,
-            Prediction.pool_id == pool_id,
-            Prediction.match_id == match_id,
-        )
+    pools_written = await save_prediction(
+        db, user, pool_id, match_id, predicted_home, predicted_away, now
     )
-    prediction = result.scalar_one_or_none()
-
-    if prediction:
-        prediction.predicted_home = predicted_home
-        prediction.predicted_away = predicted_away
-        prediction.submitted_at = now
-    else:
-        prediction = Prediction(
-            user_id=user.id,
-            pool_id=pool_id,
-            match_id=match_id,
-            predicted_home=predicted_home,
-            predicted_away=predicted_away,
-            submitted_at=now,
-        )
-        db.add(prediction)
-
     await db.commit()
+
+    if pools_written > 1:
+        message = f"Palpite salvo em {pools_written} bolões!"
+    else:
+        message = "Palpite salvo!"
 
     accept = request.headers.get("accept", "")
     if "application/json" in accept:
-        return JSONResponse({"ok": True, "message": "Palpite salvo!"})
+        return JSONResponse({"ok": True, "message": message})
     return RedirectResponse(f"/pools/{pool_id}?tab=matches", status_code=303)
 
 
@@ -113,18 +98,6 @@ async def bulk_create_or_update(
     matches_result = await db.execute(select(Match).where(Match.id.in_(match_ids)))
     matches = {match.id: match for match in matches_result.scalars().all()}
 
-    predictions_result = await db.execute(
-        select(Prediction).where(
-            Prediction.user_id == user.id,
-            Prediction.pool_id == pool_id,
-            Prediction.match_id.in_(match_ids),
-        )
-    )
-    predictions = {
-        prediction.match_id: prediction
-        for prediction in predictions_result.scalars().all()
-    }
-
     now = datetime.datetime.now(datetime.timezone.utc)
     for match_id in sorted(match_ids):
         match = matches.get(match_id)
@@ -153,22 +126,9 @@ async def bulk_create_or_update(
         if now > deadline and not match.allow_retroactive:
             continue
 
-        prediction = predictions.get(match_id)
-        if prediction:
-            prediction.predicted_home = predicted_home
-            prediction.predicted_away = predicted_away
-            prediction.submitted_at = now
-        else:
-            db.add(
-                Prediction(
-                    user_id=user.id,
-                    pool_id=pool_id,
-                    match_id=match_id,
-                    predicted_home=predicted_home,
-                    predicted_away=predicted_away,
-                    submitted_at=now,
-                )
-            )
+        await save_prediction(
+            db, user, pool_id, match_id, predicted_home, predicted_away, now
+        )
 
     await db.commit()
     return RedirectResponse(f"/pools/{pool_id}?tab=quick", status_code=303)

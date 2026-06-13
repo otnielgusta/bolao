@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 
 from app.config import settings
 from app.database import async_session
-from app.routers import auth, pools, matches, predictions, admin, invite
+from app.routers import auth, pools, matches, predictions, admin, invite, home, account
 from app.routers.auth import NotAuthenticatedError
 from app.services.autosync import auto_sync_loop
 from app.services.sync import sync_results
@@ -24,22 +24,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Bolão Copa 2026", lifespan=lifespan)
 
+app.include_router(home.router)
 app.include_router(auth.router)
 app.include_router(pools.router)
 app.include_router(matches.router)
 app.include_router(predictions.router)
 app.include_router(admin.router)
 app.include_router(invite.router)
+app.include_router(account.router)
 
 
 @app.exception_handler(NotAuthenticatedError)
 async def not_authenticated_handler(request: Request, exc: NotAuthenticatedError):
     return RedirectResponse("/auth/login", status_code=303)
-
-
-@app.get("/")
-async def root():
-    return RedirectResponse("/pools", status_code=303)
 
 
 @app.api_route("/internal/sync", methods=["GET", "POST"])

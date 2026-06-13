@@ -264,23 +264,6 @@ async def recalculate_pool_points(
     return RedirectResponse(f"/admin/pool/{pool_id}", status_code=303)
 
 
-@router.post("/match/{match_id}/retroactive")
-async def toggle_retroactive(
-    request: Request,
-    match_id: int,
-    pool_id: int = Form(...),
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
-):
-    await require_pool_owner(pool_id, user, db)
-    match = await db.get(Match, match_id)
-    if not match:
-        raise HTTPException(404)
-    match.allow_retroactive = not match.allow_retroactive
-    await db.commit()
-    return RedirectResponse(f"/admin/pool/{pool_id}", status_code=303)
-
-
 @router.post("/pool/{pool_id}/member-prediction")
 async def register_member_prediction(
     request: Request,
@@ -344,59 +327,6 @@ async def register_member_prediction(
     return RedirectResponse(f"/admin/pool/{pool_id}", status_code=303)
 
 
-@router.post("/match/{match_id}/teams")
-async def update_teams(
-    request: Request,
-    match_id: int,
-    pool_id: int = Form(...),
-    home_team: str = Form(...),
-    away_team: str = Form(...),
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
-):
-    await require_pool_owner(pool_id, user, db)
-    match = await db.get(Match, match_id)
-    if not match:
-        raise HTTPException(404)
-    if match.is_finished:
-        raise HTTPException(400, "Jogo já encerrado.")
-    match.home_team = home_team.strip()
-    match.away_team = away_team.strip()
-    await db.commit()
-    return RedirectResponse(f"/admin/pool/{pool_id}", status_code=303)
-
-
-@router.post("/match/{match_id}/result")
-async def set_result(
-    request: Request,
-    match_id: int,
-    pool_id: int = Form(...),
-    home_score: int = Form(...),
-    away_score: int = Form(...),
-    user: User = Depends(require_user),
-    db: AsyncSession = Depends(get_db),
-):
-    await require_pool_owner(pool_id, user, db)
-    match = await db.get(Match, match_id)
-    if not match:
-        raise HTTPException(404)
-
-    match.home_score = home_score
-    match.away_score = away_score
-    match.is_finished = True
-
-    preds = await db.execute(
-        select(Prediction).where(
-            Prediction.match_id == match_id,
-            Prediction.pool_id == pool_id,
-        )
-    )
-    for pred in preds.scalars().all():
-        pred.points_awarded = calculate_points(
-            pred.predicted_home, pred.predicted_away,
-            home_score, away_score,
-        )
-    await create_match_ranking_snapshots(db, pool_id, match)
-
-    await db.commit()
-    return RedirectResponse(f"/admin/pool/{pool_id}", status_code=303)
+# Global match mutations (set result, edit teams, toggle retroactive) are not
+# exposed to web users: a match row is shared by every pool. They live in the
+# server-side script `manage_matches.py` (and the automatic sync job).
