@@ -21,6 +21,75 @@
   </div>
 </div>
 
+<div class="grid gap-3 md:grid-cols-5 mb-6">
+  <div class="bg-white rounded-2xl shadow-card p-4">
+    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Jogos sem resultado</div>
+    <div class="text-2xl font-black text-gray-900 tabular-nums">{{ admin_stats.pending_results }}</div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-card p-4">
+    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Jogos abertos</div>
+    <div class="text-2xl font-black text-pitch-700 tabular-nums">{{ admin_stats.open_matches }}</div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-card p-4">
+    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Palpites faltando</div>
+    <div class="text-2xl font-black text-amber-600 tabular-nums">{{ admin_stats.missing_open_predictions }}</div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-card p-4">
+    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Membros pendentes</div>
+    <div class="text-2xl font-black text-gray-900 tabular-nums">{{ admin_stats.members_missing_open }}</div>
+  </div>
+  <div class="bg-white rounded-2xl shadow-card p-4">
+    <div class="text-[10px] font-bold uppercase tracking-wide text-gray-400">Membros</div>
+    <div class="text-2xl font-black text-gray-900 tabular-nums">{{ admin_stats.members }}</div>
+  </div>
+</div>
+
+<div class="flex justify-end mb-6">
+  <button type="button"
+          x-data="{ copied: false, loading: false }"
+          :disabled="loading"
+          @click="
+            loading = true;
+            copyExportText('/admin/pool/{{ pool.id }}/pending-reminder_copy', 'Cobrança copiada!')
+              .then(() => { copied = true; setTimeout(() => copied = false, 2000); })
+              .catch(() => window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Erro ao copiar.', ok: false } })))
+              .finally(() => loading = false)
+          "
+          class="bg-gold-400 hover:bg-gold-500 text-pitch-950 text-xs font-black px-4 py-2.5 rounded-xl transition disabled:opacity-50">
+    <span x-show="!copied">Copiar cobrança dos pendentes</span>
+    <span x-show="copied" x-cloak>Copiado!</span>
+  </button>
+</div>
+
+<div class="grid gap-4 lg:grid-cols-2 mb-6">
+  <form method="POST" action="/admin/pool/{{ pool.id }}/settings" class="bg-white rounded-2xl shadow-card p-5">
+    <h2 class="font-extrabold text-gray-900 mb-1">Visibilidade dos palpites</h2>
+    <p class="text-sm text-gray-500 mb-4">Controle se os participantes veem os palpites dos outros antes do prazo fechar.</p>
+    <label class="flex items-start gap-3 cursor-pointer">
+      <input type="checkbox" name="show_predictions_before_deadline" value="1"
+             {% if pool.show_predictions_before_deadline %}checked{% endif %}
+             class="mt-1 h-5 w-5 rounded border-gray-300 text-pitch-700 focus:ring-pitch-500">
+      <span>
+        <span class="block text-sm font-bold text-gray-900">Mostrar palpites antes do prazo</span>
+        <span class="block text-xs text-gray-500">Se desligado, os palpites ficam ocultos até 5 minutos antes do jogo. Depois disso, todos conseguem ver e copiar.</span>
+      </span>
+    </label>
+    <button type="submit" class="mt-4 bg-pitch-700 hover:bg-pitch-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition">
+      Salvar configuração
+    </button>
+  </form>
+
+  <form method="POST" action="/admin/pool/{{ pool.id }}/recalculate-points"
+        class="bg-white rounded-2xl shadow-card p-5"
+        onsubmit="return confirm('Recalcular a pontuação de todos os jogos finalizados deste bolão?')">
+    <h2 class="font-extrabold text-gray-900 mb-1">Pontuação</h2>
+    <p class="text-sm text-gray-500 mb-4">Use quando um resultado for corrigido manualmente ou quando quiser conferir a pontuação finalizada.</p>
+    <button type="submit" class="bg-gray-900 hover:bg-black text-white text-xs font-bold px-4 py-2.5 rounded-xl transition">
+      Recalcular pontuação
+    </button>
+  </form>
+</div>
+
 <div class="space-y-3" x-data="{ editing: null, predicting: null }">
   {% for match in matches %}
   <div class="bg-white rounded-2xl shadow-card p-5">

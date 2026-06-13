@@ -1,4 +1,17 @@
-{% if match_predictions %}
+{% set predictions_visible = predictions_visible|default(true) %}
+{% set point_labels = {
+  10: 'Placar exato',
+  7: 'Vencedor + saldo',
+  5: 'Vencedor + gols',
+  3: 'Vencedor',
+  1: 'Gols de um time',
+  0: 'Sem acerto'
+} %}
+{% if not predictions_visible %}
+<div class="px-5 py-6 text-center text-sm text-gray-400 font-medium">
+  Palpites ocultos até {{ prediction_release_label }} BRT. Depois do prazo, todos os palpites deste jogo ficam disponíveis.
+</div>
+{% elif match_predictions %}
 <div class="divide-y divide-gray-100">
   {% for pred in match_predictions %}
   <div class="px-5 py-3 flex items-center justify-between gap-4 flex-wrap {% if pred.user_id == user.id %}bg-pitch-50/60{% endif %}">
@@ -17,6 +30,9 @@
         {% elif pred.points_awarded == 1 %}bg-gray-200 text-gray-600
         {% else %}bg-gray-100 text-gray-400{% endif %}">
         +{{ pred.points_awarded if pred.points_awarded is not none else 0 }}
+      </span>
+      <span class="hidden sm:inline text-[10px] uppercase tracking-wide font-semibold text-gray-400">
+        {{ point_labels.get(pred.points_awarded if pred.points_awarded is not none else 0) }}
       </span>
       {% endif %}
     </div>

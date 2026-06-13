@@ -15,11 +15,26 @@
     </thead>
     <tbody class="divide-y divide-gray-100">
       {% for r in ranking %}
-      <tr class="{% if r.position == 1 %}bg-gold-300/20{% elif r.position <= 3 %}bg-gold-300/10{% endif %} hover:bg-pitch-50/50 transition">
+      <tr class="{% if r.is_current_user %}bg-pitch-50 ring-1 ring-inset ring-pitch-200{% elif r.position == 1 %}bg-gold-300/20{% elif r.position <= 3 %}bg-gold-300/10{% endif %} hover:bg-pitch-50/50 transition">
         <td class="px-4 py-3 font-black text-gray-400 tabular-nums">
           {% if r.position == 1 %}🥇{% elif r.position == 2 %}🥈{% elif r.position == 3 %}🥉{% else %}{{ r.position }}º{% endif %}
         </td>
-        <td class="px-4 py-3 font-bold text-gray-900">{{ r.display_name }}</td>
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-bold text-gray-900">{{ r.display_name }}</span>
+            {% if r.is_current_user %}
+            <span class="text-[10px] uppercase tracking-wide font-black text-pitch-700 bg-pitch-100 px-2 py-0.5 rounded-full">Você</span>
+            {% endif %}
+            {% if r.position_delta > 0 %}
+            <span class="text-[10px] uppercase tracking-wide font-black text-pitch-700 bg-pitch-50 px-2 py-0.5 rounded-full">↑ {{ r.position_delta }}</span>
+            {% elif r.position_delta < 0 %}
+            <span class="text-[10px] uppercase tracking-wide font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-full">↓ {{ r.position_delta|abs }}</span>
+            {% endif %}
+          </div>
+          {% if r.is_current_user and r.points_to_pass %}
+          <div class="text-[11px] text-gray-400 mt-0.5">Faltam {{ r.points_to_pass }} pts para passar {{ r.next_display_name }}.</div>
+          {% endif %}
+        </td>
         <td class="px-4 py-3 text-center"><span class="font-black text-pitch-700 text-base tabular-nums">{{ r.total }}</span></td>
         <td class="px-3 py-3 text-center tabular-nums {% if r.counts[10] %}font-bold text-pitch-700{% else %}text-gray-300{% endif %}">{{ r.counts[10] }}</td>
         <td class="px-3 py-3 text-center tabular-nums {% if r.counts[7] %}font-bold text-pitch-600{% else %}text-gray-300{% endif %}">{{ r.counts[7] }}</td>
