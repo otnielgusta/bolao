@@ -148,7 +148,8 @@ Endpoints atuais de copia:
 
 ### Mata-mata
 
-Penaltis nao entram no placar do bolao. A sincronizacao usa `score.fullTime` da API, que representa tempo regulamentar + prorrogacao.
+No mata-mata, o placar valido do bolao e o tempo normal: 90 minutos mais acrescimos. Gols da prorrogacao e penaltis nao entram. A sincronizacao usa score.regularTime quando disponivel e deriva de fullTime - extraTime - penalties quando necessario.
+ullTime - extraTime - penalties quando necessario.
 
 ## Frontend
 

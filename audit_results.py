@@ -19,7 +19,7 @@ from app.database import async_session
 from app.models import Match
 from app.services.matches import recalculate_all_pools
 from app.services.ranking import create_match_snapshots_for_all_pools
-from app.services.sync import _find_local_match, fetch_api_matches
+from app.services.sync import _find_local_match, extract_bolao_score, fetch_api_matches
 from app.templating import local_strftime
 
 Score = tuple[int, int]
@@ -47,16 +47,6 @@ class AuditSummary:
     matched: int
     unmatched: int
     findings: list[Finding]
-
-
-def _api_full_time_score(api_match: dict) -> Score | None:
-    score = api_match.get("score") or {}
-    full_time = score.get("fullTime") or {}
-    home = full_time.get("home")
-    away = full_time.get("away")
-    if home is None or away is None:
-        return None
-    return int(home), int(away)
 
 
 def _api_winner(api_match: dict) -> str | None:
@@ -131,7 +121,7 @@ async def audit_results() -> AuditSummary:
                 continue
             matched += 1
 
-            api_score = _api_full_time_score(api_match)
+            api_score = extract_bolao_score(api_match)
             api_winner = _api_winner(api_match)
             local_score = _local_score(local)
             reasons: list[str] = []
@@ -140,12 +130,14 @@ async def audit_results() -> AuditSummary:
             if api_score is not None and local_score is None:
                 reasons.append("API finalizou o jogo, mas o banco esta sem placar")
             elif api_score is not None and local_score != api_score:
-                reasons.append("placar do banco difere do score.fullTime atual da API")
+                reasons.append("placar do banco difere do placar valido do bolao na API")
 
-            if api_winner:
+            duration = ((api_match.get("score") or {}).get("duration") or "").strip()
+            should_match_winner = duration in {"", "REGULAR"}
+            if api_winner and should_match_winner:
                 if api_score is not None and _winner_from_score(api_score) != api_winner:
                     api_score_conflicts_winner = True
-                    reasons.append("API inconsistente: winner nao bate com score.fullTime")
+                    reasons.append("API inconsistente: winner nao bate com placar valido")
                 if local_score is not None and _winner_from_score(local_score) != api_winner:
                     reasons.append("placar do banco contradiz o winner atual da API")
 

@@ -87,7 +87,7 @@ Fonte da verdade: `app/services/scoring.py`.
 ### Sincronizacao de resultados
 
 Fonte da verdade: `app/services/sync.py`.
-Tenha cuidado com a interpretacao de placar no mata-mata: penaltis nao entram.
+Tenha cuidado com a interpretacao de placar no mata-mata: vale somente tempo normal (90 minutos + acrescimos); prorrogacao e penaltis nao entram.
 
 ## Mapa de mudancas comuns
 

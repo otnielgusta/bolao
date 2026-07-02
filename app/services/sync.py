@@ -12,7 +12,7 @@ Strategy:
 - For FINISHED matches with a published score: store score, mark finished,
   recalculate points of every prediction across all pools.
 
-Penalty shootouts are ignored: API fullTime reflects the 120-minute result.
+Knockout scores use the 90-minute regular-time score for the bolao.
 """
 import datetime as dt
 import logging
@@ -30,6 +30,7 @@ from app.services.teams import TEAMS
 logger = logging.getLogger(__name__)
 
 API_URL = "https://api.football-data.org/v4/competitions/WC/matches"
+Score = tuple[int, int]
 
 STAGE_MAP = {
     "GROUP_STAGE": None,  # group stage rows already named "Grupo X"
@@ -52,6 +53,62 @@ async def fetch_api_matches() -> list[dict]:
 
 def _parse_utc(value: str) -> dt.datetime:
     return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _score_pair(score_node: dict | None) -> Score | None:
+    if not score_node:
+        return None
+    home = score_node.get("home")
+    away = score_node.get("away")
+    if home is None:
+        home = score_node.get("homeTeam")
+    if away is None:
+        away = score_node.get("awayTeam")
+    if home is None or away is None:
+        return None
+    return int(home), int(away)
+
+
+def _subtract_scores(base: Score, *deductions: Score | None) -> Score | None:
+    home, away = base
+    for deduction in deductions:
+        if deduction is None:
+            continue
+        home -= deduction[0]
+        away -= deduction[1]
+    if home < 0 or away < 0:
+        return None
+    return home, away
+
+
+def extract_bolao_score(api_match: dict) -> Score | None:
+    """Return the score that counts for the bolao: regular time only."""
+    score = api_match.get("score") or {}
+    regular_time = _score_pair(score.get("regularTime"))
+    if regular_time is not None:
+        return regular_time
+
+    full_time = _score_pair(score.get("fullTime"))
+    if full_time is None:
+        return None
+
+    duration = score.get("duration")
+    if duration in {None, "REGULAR"}:
+        return full_time
+
+    extra_time = _score_pair(score.get("extraTime"))
+    if duration == "EXTRA_TIME":
+        if extra_time is None:
+            return None
+        return _subtract_scores(full_time, extra_time)
+
+    penalties = _score_pair(score.get("penalties"))
+    if duration == "PENALTY_SHOOTOUT":
+        if extra_time is None or penalties is None:
+            return None
+        return _subtract_scores(full_time, extra_time, penalties)
+
+    return None
 
 
 async def _find_local_match(db: AsyncSession, api_match: dict) -> Match | None:
@@ -144,10 +201,9 @@ async def sync_results(db: AsyncSession) -> dict:
 
         # Result
         if api_match["status"] == "FINISHED" and not local.is_finished:
-            score = api_match.get("score") or {}
-            full_time = score.get("fullTime") or {}
-            home_score, away_score = full_time.get("home"), full_time.get("away")
-            if home_score is not None and away_score is not None:
+            bolao_score = extract_bolao_score(api_match)
+            if bolao_score is not None:
+                home_score, away_score = bolao_score
                 local.home_score = home_score
                 local.away_score = away_score
                 local.is_finished = True
